@@ -1,14 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>JS 2D Shooter</title>
+    <title>Web Danmaku Shooter</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h2>SPACE: 발사 | ← →: 이동</h2>
-    <canvas id="gameCanvas" width="600" height="800"></canvas>
-    <div class="controls" id="scoreBoard">Score: 0</div>
+    <div class="game-container">
+        <h1>웹 슈팅</h1>
+        <div class="description">
+            <p><strong>방향키:</strong> 이동</p>
+            <p><strong>Shift:</strong> 저속 이동 (판정점 보기)</p>
+            <p>※ 하얀 점(판정점)만 피하세요!</p>
+        </div>
+        
+        <canvas id="gameCanvas" width="600" height="800"></canvas>
+        
+        <div class="ui-panel">
+            <div id="scoreBoard">SCORE: 0</div>
+        </div>
+    </div>
 
     <script src="game.js"></script>
 </body>
