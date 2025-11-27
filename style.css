@@ -1,24 +1,48 @@
 body { 
     margin: 0; 
-    background: #222; 
+    background-color: #111; /* 전체 배경을 아주 어둡게 */
     color: white; 
+    font-family: 'Courier New', Courier, monospace; /* 게임 느낌 폰트 */
     display: flex; 
-    flex-direction: column; 
-    align-items: center; 
     justify-content: center; 
-    height: 100vh; 
-    font-family: sans-serif; 
+    align-items: center; 
+    min-height: 100vh; 
 }
+
+.game-container {
+    text-align: center;
+}
+
+h1 {
+    margin: 0 0 10px 0;
+    font-size: 24px;
+    color: #ffcc00;
+    text-shadow: 0 0 10px #ffcc00; /* 제목 네온 효과 */
+}
+
+.description {
+    margin-bottom: 15px;
+    color: #ccc;
+    font-size: 14px;
+}
+
+.description p {
+    margin: 5px 0;
+    display: inline-block;
+    margin-right: 15px;
+}
+
 canvas { 
-    background: #000; 
-    border: 2px solid #555; 
+    background-color: #000; 
+    border: 4px solid #333; 
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); /* 캔버스 주변 은은한 빛 */
+    display: block;
+    margin: 0 auto;
 }
-.controls { 
-    margin-top: 10px; 
-    color: #aaa; 
+
+.ui-panel {
+    margin-top: 10px;
     font-size: 20px;
     font-weight: bold;
-}
-h2 {
-    margin-bottom: 10px;
+    color: #fff;
 }
