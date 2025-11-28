@@ -1,43 +1,101 @@
 body {
-    margin: 0; background: #111; height: 100vh;
-    display: flex; justify-content: center; align-items: center;
-    font-family: 'Courier New', monospace; overflow: hidden;
+    margin: 0;
+    background: #000; /* 완전 검은색 */
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
 }
+
+/* 게임 전체 화면 틀 */
 #game-screen {
-    position: relative; width: 600px; height: 800px; box-shadow: 0 0 40px #000;
+    position: relative;
+    width: 600px;
+    height: 800px;
+    box-shadow: 0 0 50px #111;
+    overflow: hidden; /* 화면 밖으로 나가는 효과 자름 */
+    background: #050505;
 }
-canvas { background: #050505; display: block; }
 
-.boss-hp-container { position: absolute; top: 0; left: 0; width: 100%; height: 10px; background: #333; z-index: 5; }
-#boss-hp-bar { width: 100%; height: 100%; background: #00ccff; transition: width 0.2s, background 0.3s; }
+canvas {
+    display: block;
+    background: transparent; /* 캔버스 투명 (배경색은 game-screen이 담당) */
+}
 
-#ui-layer { position: absolute; top: 15px; left: 15px; width: 570px; pointer-events: none; z-index: 10; }
-#score-box { color: #fff; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
-#hp-box { color: #ff3333; font-size: 24px; margin-top: 5px; }
-#admin-msg { color: #ffd700; font-size: 18px; font-weight: bold; margin-top: 5px; display: none; text-shadow: 0 0 5px orange; }
+/* --- UI 디자인 --- */
+.boss-hp-container {
+    position: absolute; top: 0; left: 0; width: 100%; height: 10px; 
+    background: #333; z-index: 5;
+}
+#boss-hp-bar {
+    width: 100%; height: 100%; 
+    background: #00ccff; 
+    transition: width 0.1s linear, background 0.3s;
+    box-shadow: 0 0 10px currentColor; /* 체력바 빛남 */
+}
+
+#ui-layer {
+    position: absolute; top: 15px; left: 15px; width: 570px;
+    pointer-events: none; z-index: 10;
+}
+
+#score-box { 
+    color: #fff; font-size: 20px; font-weight: bold; 
+    text-shadow: 2px 2px 0 #000; 
+}
+#hp-box { 
+    color: #ff3333; font-size: 24px; margin-top: 5px; 
+    text-shadow: 2px 2px 0 #000;
+}
+#admin-msg { 
+    color: #ffd700; font-size: 18px; font-weight: bold; margin-top: 5px; 
+    display: none; text-shadow: 0 0 10px orange; 
+}
+
+/* 중앙 경고 메시지 (크고 웅장하게) */
 #msg-box {
-    position: absolute; top: 300px; width: 100%; text-align: center;
-    font-size: 60px; font-weight: 900; color: #fff;
-    text-shadow: 0 0 20px #f00; display: none; z-index: 20;
+    position: absolute; top: 35%; width: 100%; text-align: center;
+    font-size: 50px; font-weight: 900; color: #fff;
+    text-shadow: 0 0 20px #f00, 2px 2px 0 #000; 
+    display: none; z-index: 20;
+    letter-spacing: -2px;
 }
 
-/* 애니메이션 정의 */
-@keyframes shake {
-    0% { transform: translate(2px, 2px); } 25% { transform: translate(-2px, -2px); } 
-    50% { transform: translate(2px, -2px); } 75% { transform: translate(-2px, 2px); } 
+/* --- ★ 애니메이션 효과 (핵심) --- */
+
+/* 1. 지진 효과 (폭발, 페이즈 전환) */
+@keyframes shake-anim {
+    0% { transform: translate(0, 0); }
+    10% { transform: translate(-5px, -5px); }
+    20% { transform: translate(5px, 5px); }
+    30% { transform: translate(-5px, 5px); }
+    40% { transform: translate(5px, -5px); }
+    50% { transform: translate(-5px, 0); }
+    60% { transform: translate(5px, 0); }
+    70% { transform: translate(0, 5px); }
+    80% { transform: translate(0, -5px); }
+    90% { transform: translate(-2px, 2px); }
     100% { transform: translate(0, 0); }
 }
-@keyframes invert-color { 
-    0% { filter: invert(0); } 50% { filter: invert(1); } 100% { filter: invert(0); } 
+
+/* 2. 색반전 (블랙홀, 2페이즈) - 화면이 네거티브 필름처럼 변함 */
+@keyframes invert-anim {
+    0% { filter: invert(0); }
+    50% { filter: invert(1); } /* 100% 반전 */
+    100% { filter: invert(0); }
 }
-@keyframes red-alarm {
+
+/* 3. 3페이즈 붉은 경보 (화면이 붉게 울렁거림) */
+@keyframes red-alert-anim {
     0% { box-shadow: inset 0 0 0 rgba(255,0,0,0); transform: scale(1); }
-    50% { box-shadow: inset 0 0 100px rgba(255,0,0,0.5); transform: scale(1.02); }
+    50% { box-shadow: inset 0 0 150px rgba(255,0,0,0.6); transform: scale(1.02); }
     100% { box-shadow: inset 0 0 0 rgba(255,0,0,0); transform: scale(1); }
 }
 
-/* 클래스용 */
-.shake-effect { animation: shake 0.1s infinite; }
-.invert-effect { animation: invert-color 0.5s infinite; } /* 3페이즈는 계속 반전 깜빡임 */
-.invert-once { animation: invert-color 0.5s; } /* 2페이즈는 한번만 */
-.phase3-effect { animation: red-alarm 0.5s infinite; }
+/* 자바스크립트가 붙였다 뗐다 하는 클래스들 */
+.shake-effect { animation: shake-anim 0.5s ease-in-out; } /* 짧고 굵은 흔들림 */
+.invert-once { animation: invert-anim 0.3s linear; } /* 2페이즈용 짧은 반전 */
+.invert-effect { filter: invert(1); } /* ★ 블랙홀용: 애니메이션 아님, 그냥 계속 반전 상태 유지 */
+.phase3-effect { animation: red-alert-anim 0.8s infinite; } /* 3페이즈 내내 붉은 점멸 */
