@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <title>Web Danmaku Shooter</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <div class="game-container">
-        <h1>웹 슈팅</h1>
+        <h1>HELL DANMAKU: PHASE 3</h1>
         <div class="description">
-            <p><strong>방향키:</strong> 이동</p>
-            <p><strong>Shift:</strong> 저속 이동 (판정점 보기)</p>
-            <p>※ 하얀 점(판정점)만 피하세요!</p>
+            <p><span class="key">방향키</span> 이동</p>
+            <p><span class="key">Shift</span> 저속 모드 (판정점)</p>
+            <p><span class="key">R</span> 재시작</p>
         </div>
         
         <canvas id="gameCanvas" width="600" height="800"></canvas>
         
         <div class="ui-panel">
-            <div id="scoreBoard">SCORE: 0</div>
+            <div id="scoreBoard">SCORE: 0 | PHASE: 1</div>
         </div>
     </div>
 
-    <script src="game.js"></script>
+    <script src="game.js?v=3"></script>
 </body>
 </html>
