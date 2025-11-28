@@ -7,36 +7,36 @@ const msgBox = document.getElementById('msg');
 // --- 엔진 설정 ---
 let score = 0;
 let frame = 0;
-let state = 'play'; // play, over, clear
+let state = 'play'; 
 
 const player = { x: 300, y: 700, r: 3, speed: 5, invul: 0 };
 const boss = { x: 300, y: 150, r: 30, hp: 30000, maxHp: 30000, phase: 1, angle: 0 };
 let bullets = [];
 const keys = {};
 
-// --- 총알 생성기 (고급 물리 엔진) ---
+// --- 총알 생성기 ---
 function shoot(p) {
     bullets.push({
         x: p.x, y: p.y,
-        vx: Math.cos(p.a) * p.s, vy: Math.sin(p.a) * p.s,
         speed: p.s, angle: p.a,
+        // vx, vy는 아래 update에서 계산하므로 초기값 필요 없음
         r: p.r || 4, color: p.c || '#fff',
         
-        // 특수 속성
-        accel: p.accel || 0,      // 가속도
-        curve: p.curve || 0,      // 회전각
-        homing: p.homing || 0,    // 유도력
-        isLaser: p.isLaser,       // 레이저
-        w: p.w, h: p.h,           // 레이저 크기
-        bounce: p.bounce || 0,    // 벽 튕김
-        delay: p.delay || 0,      // 딜레이
-        isEnemy: true
+        accel: p.accel || 0,     
+        curve: p.curve || 0,      
+        homing: p.homing || 0,    
+        isLaser: p.isLaser,       
+        w: p.w, h: p.h,           
+        bounce: p.bounce || 0,    
+        delay: p.delay || 0,
+        grazed: false, // ★ 스침 점수 중복 방지용 플래그
+        isEnemy: p.isEnemy !== undefined ? p.isEnemy : true // 아군/적군 구분
     });
 }
 
-// --- 패턴 라이브러리 (총 33개) ---
+// --- 패턴 라이브러리 (33개) ---
 const patterns = {
-    // [Phase 1: Blue] - 규칙적이고 아름다운 탄막
+    // [Phase 1]
     1: () => { for(let i=0; i<12; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i*0.5, s:3, c:'#aaf'}); boss.angle+=0.1; },
     2: () => { for(let i=0; i<36; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/36*i, s:2.5, c:'#fff', r:2}); },
     3: () => { let aim=angleToP(); for(let i=-2; i<=2; i++) shoot({x:boss.x, y:boss.y, a:aim+i*0.1, s:5, c:'#0ff'}); },
@@ -49,7 +49,7 @@ const patterns = {
     10: () => { shoot({x:boss.x, y:boss.y, a:Math.sin(frame/20)*2, s:4, c:'#0ff'}); },
     11: () => { for(let i=0; i<3; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i*2, s:3, c:'#ddf', r:6}); boss.angle+=0.137; },
 
-    // [Phase 2: Red] - 빠르고 불규칙
+    // [Phase 2]
     12: () => { for(let i=0; i<5; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*6, s:Math.random()*5+3, c:'#f55'}); },
     13: () => { for(let i=0; i<16; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/16*i+boss.angle, s:5, c:'#0f0', bounce:2}); boss.angle+=0.05; },
     14: () => { shoot({x:boss.x, y:boss.y, a:angleToP(), s:8, c:'#f00', r:8}); },
@@ -62,7 +62,7 @@ const patterns = {
     21: () => { for(let i=0; i<20; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/20*i, s:2, accel:0.1, c:'#fff'}); },
     22: () => { shoot({x:boss.x, y:boss.y, a:boss.angle, s:4, c:'#f88', curve:Math.sin(frame/30)*0.1}); boss.angle+=0.1; },
 
-    // [Phase 3: Purple] - 지옥 (유도, 레이저)
+    // [Phase 3]
     23: () => { shoot({x:boss.x, y:boss.y, a:angleToP(), s:3, c:'#a0f', homing:0.05}); },
     24: () => { shoot({x:0, y:Math.random()*600+100, a:0, s:15, c:'#f0f', w:600, h:20, isLaser:true}); },
     25: () => { for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI/2*i, s:3, c:'#90f', curve:0.03}); for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI/2*i, s:3, c:'#90f', curve:-0.03}); boss.angle+=0.1; },
@@ -91,10 +91,12 @@ function update() {
     if(keys['ArrowUp'] && player.y>5) player.y-=spd;
     if(keys['ArrowDown'] && player.y<795) player.y+=spd;
     
-    // 플레이어 사격
-    if(frame%4===0) {
-        bullets.push({x:player.x-10, y:player.y, vx:0, vy:-20, s:20, r:3, c:'#afa', isEnemy:false});
-        bullets.push({x:player.x+10, y:player.y, vx:0, vy:-20, s:20, r:3, c:'#afa', isEnemy:false});
+    // ★ [수정됨] 플레이어 사격 (이제 정상 작동!)
+    if(frame % 4 === 0) {
+        // 엔진이 이해할 수 있게 'angle'과 'speed'를 줍니다.
+        // angle: -Math.PI/2 는 12시 방향(위쪽)입니다.
+        shoot({x:player.x-10, y:player.y, a:-Math.PI/2, s:20, r:3, c:'#afa', isEnemy:false});
+        shoot({x:player.x+10, y:player.y, a:-Math.PI/2, s:20, r:3, c:'#afa', isEnemy:false});
     }
 
     // 보스 이동
@@ -133,7 +135,7 @@ function update() {
     hpBar.style.width = (hpR*100)+'%';
     hpBar.style.background = boss.phase===1?'#0cf' : boss.phase===2?'#f33' : '#a0f';
 
-    // 총알 업데이트
+    // --- 총알 업데이트 ---
     for (let i=0; i<bullets.length; i++) {
         let b = bullets[i];
         if(b.dead) continue;
@@ -151,6 +153,8 @@ function update() {
 
         if(b.curve) b.angle += b.curve;
 
+        // ★ 여기서 엔진이 vx, vy를 강제로 덮어씌웁니다.
+        // 그래서 플레이어 총알도 vx, vy 대신 angle, speed를 줬어야 했습니다.
         b.vx = Math.cos(b.angle) * b.speed;
         b.vy = Math.sin(b.angle) * b.speed;
         b.x += b.vx;
@@ -162,19 +166,31 @@ function update() {
 
         if(b.x<-100 || b.x>700 || b.y<-100 || b.y>900) b.dead = true;
 
+        // 충돌 체크
         if (b.isEnemy) {
             let hit = false;
+            let dist = 0; // 플레이어와 총알 거리
+
             if (b.isLaser) {
                 if (Math.abs(b.x-player.x)<b.w/2+2 && Math.abs(b.y-player.y)<b.h/2+2) hit=true;
             } else {
-                let dist = Math.hypot(b.x-player.x, b.y-player.y);
+                dist = Math.hypot(b.x-player.x, b.y-player.y);
                 if (dist < player.hitboxSize + b.r) hit = true;
-                if (dist < 20) score++;
+                
+                // ★ [수정됨] 스침(Graze) 로직 수정
+                // 한번 스친 총알은 다시 점수를 주지 않음 (!b.grazed 체크 추가)
+                else if (dist < 20 && !b.grazed) { 
+                    score += 5; 
+                    b.grazed = true; // "이미 점수 줌" 표시
+                }
             }
             if(hit) state='over';
         } else {
+            // 보스 피격
             if(Math.abs(b.x-boss.x)<30 && Math.abs(b.y-boss.y)<30) {
-                boss.hp -= 20; score += 10; b.dead = true;
+                boss.hp -= 20; 
+                score += 50; // 보스 때리면 점수 대폭 증가
+                b.dead = true;
                 if(boss.hp <= 0) state = 'clear';
             }
         }
