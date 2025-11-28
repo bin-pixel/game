@@ -2,13 +2,13 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreBoard = document.getElementById('scoreBoard');
 
-// --- 1. 게임 설정 및 상태 ---
+// --- 1. 게임 전역 변수 ---
 let score = 0;
 let frameCount = 0;
 let isGameOver = false;
 let isVictory = false;
 
-// 플레이어
+// 플레이어 설정
 const player = { 
     x: 300, y: 700, 
     width: 30, height: 40, 
@@ -17,20 +17,20 @@ const player = {
     speed: 5 
 };
 
-// 배경 별
+// 배경 별 (Starfield)
 let stars = [];
-for(let i=0; i<80; i++) {
+for(let i=0; i<100; i++) {
     stars.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        size: Math.random() * 2 + 1,
+        size: Math.random() * 2 + 0.5,
         speed: Math.random() * 4 + 1
     });
 }
 
-// 오브젝트 관리
+// 오브젝트
 let bullets = []; 
-const MAX_BOSS_HP = 6000; // 체력 상향
+const MAX_BOSS_HP = 8000; // 체력 설정
 let boss = { 
     x: 300, y: 150, 
     width: 60, height: 60, 
@@ -40,7 +40,7 @@ let boss = {
     phase: 1
 };
 
-// 키 입력
+// 키 입력 상태
 let keys = {};
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
@@ -49,31 +49,26 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => keys[e.code] = false);
 
 
-// --- 2. 패턴 관리 시스템 (핵심!) ---
-// 각 패턴별 쿨타임(프레임 단위) 관리
+// --- 2. 패턴 관리 시스템 (Pattern Manager) ---
+// 각 패턴의 쿨타임(프레임)과 마지막 사용 시점 저장
 const patterns = {
-    // 2페이즈 패턴
-    chaosBurst: { cooldown: 180, lastUsed: -999 },  // 3초마다
-    wallBounce: { cooldown: 240, lastUsed: -999 },  // 4초마다
-    // 3페이즈 패턴
-    horizLaser: { cooldown: 100, lastUsed: -999 },  // 1.5초마다
-    aimedShot:  { cooldown: 120, lastUsed: -999 }   // 2초마다
+    aimedShot:  { cooldown: 90,  lastUsed: -999 }, // 1.5초
+    chaosBurst: { cooldown: 200, lastUsed: -999 }, // 약 3초
+    wallBounce: { cooldown: 300, lastUsed: -999 }, // 5초
+    horizLaser: { cooldown: 150, lastUsed: -999 }  // 2.5초
 };
 
-// 현재 실행 중인 패턴 개수 체크 (간이 로직)
-// 실제로는 지속시간이 필요하지만, 여기선 발동 빈도로 조절
-function canUsePattern(patternName) {
-    if (frameCount - patterns[patternName].lastUsed > patterns[patternName].cooldown) {
-        // 랜덤성을 줘서 칼같이 쿨타임마다 쏘지 않게 함 (10% 확률로 지연)
-        if (Math.random() < 0.95) return true;
+// 패턴 사용 가능 여부 체크
+function canUsePattern(name) {
+    if (frameCount - patterns[name].lastUsed > patterns[name].cooldown) {
+        return true;
     }
     return false;
 }
 
+// --- 3. 총알 생성 및 패턴 함수들 ---
 
-// --- 3. 총알 생성 및 패턴 함수 ---
-
-// 기본 총알 생성기
+// 통합 총알 생성기
 function spawnBullet(props) {
     bullets.push({
         x: props.x, 
@@ -84,90 +79,74 @@ function spawnBullet(props) {
         color: props.color || '#fff',
         isEnemy: props.isEnemy,
         
-        // 특수 속성들
-        bouncesLeft: props.bouncesLeft || 0, // 벽 튕기기 횟수
-        isLaser: props.isLaser || false,     // 레이저(관통/긴 형태)
-        width: props.width || props.size,    // 레이저용 가로세로
+        // 특수 기능
+        bouncesLeft: props.bouncesLeft || 0, // 튕김 횟수
+        isLaser: props.isLaser || false,     // 레이저 여부
+        width: props.width || props.size,    // 레이저용 크기
         height: props.height || props.size
     });
 }
 
-// [패턴 1] 마구잡이 광탄 (Chaos Burst)
-function fireChaosBurst() {
-    patterns.chaosBurst.lastUsed = frameCount;
-    // 한 번에 30발을 랜덤한 방향/속도로 뿌림
-    for (let i = 0; i < 30; i++) {
-        spawnBullet({
-            x: boss.x, y: boss.y,
-            angle: Math.random() * Math.PI * 2, // 전방위
-            speed: Math.random() * 5 + 2,       // 속도도 랜덤
-            size: 5,
-            color: '#ffaa00', // 주황색
-            isEnemy: true
-        });
-    }
-}
-
-// [패턴 2] 벽 튕기기 탄 (Bouncing Shot)
-function fireWallBounce() {
-    patterns.wallBounce.lastUsed = frameCount;
-    // 부채꼴로 발사
-    for (let i = 0; i < 12; i++) {
-        let angle = (Math.PI / 12) * i + Math.PI / 4; // 아래쪽 부채꼴
-        spawnBullet({
-            x: boss.x, y: boss.y,
-            angle: angle,
-            speed: 6,
-            size: 6,
-            color: '#00ff00', // 초록색
-            isEnemy: true,
-            bouncesLeft: 2 // ★ 벽에 2번 튕김!
-        });
-    }
-}
-
-// [패턴 3] 가로 레이저 (Horizontal Laser)
-function fireHorizontalLaser() {
-    patterns.horizLaser.lastUsed = frameCount;
-    // 왼쪽이나 오른쪽 벽에서 생성되어 가로지름
-    let fromLeft = Math.random() > 0.5;
-    let yPos = Math.random() * (canvas.height - 200) + 50; // 플레이어 활동 영역
-    
-    spawnBullet({
-        x: fromLeft ? 0 : canvas.width,
-        y: yPos,
-        angle: fromLeft ? 0 : Math.PI, // 0도(우) or 180도(좌)
-        speed: 10, // 매우 빠름
-        size: 5,
-        width: 60, height: 10, // 길쭉한 레이저 형태
-        color: '#ff00ff', // 보라색
-        isEnemy: true,
-        isLaser: true
-    });
-}
-
-// [패턴 4] 조준탄 (Aimed Shot)
+// 패턴 1: 조준탄 (플레이어 위치로 발사)
 function fireAimedShot() {
     patterns.aimedShot.lastUsed = frameCount;
     let dx = player.x - boss.x;
     let dy = player.y - boss.y;
     let aimAngle = Math.atan2(dy, dx);
     
-    // 3발 발사
+    // 3발 부채꼴
     for(let i=-1; i<=1; i++){
         spawnBullet({
-            x: boss.x, y: boss.y,
-            angle: aimAngle + (i * 0.1),
-            speed: 8,
-            size: 8,
-            color: 'red',
-            isEnemy: true
+            x: boss.x, y: boss.y, angle: aimAngle + (i * 0.15),
+            speed: 7, size: 6, color: '#ff5555', isEnemy: true
         });
     }
 }
 
+// 패턴 2: 카오스 버스트 (전방위 난사)
+function fireChaosBurst() {
+    patterns.chaosBurst.lastUsed = frameCount;
+    for (let i = 0; i < 30; i++) {
+        spawnBullet({
+            x: boss.x, y: boss.y,
+            angle: Math.random() * Math.PI * 2,
+            speed: Math.random() * 4 + 3,
+            size: 5, color: '#ffaa00', isEnemy: true
+        });
+    }
+}
 
-// --- 4. 게임 루프 및 업데이트 ---
+// 패턴 3: 벽 튕기기 (초록색 탄)
+function fireWallBounce() {
+    patterns.wallBounce.lastUsed = frameCount;
+    for (let i = 0; i < 16; i++) {
+        spawnBullet({
+            x: boss.x, y: boss.y,
+            angle: (Math.PI * 2 / 16) * i + frameCount/100, // 회전하며 발사
+            speed: 5, size: 7, color: '#00ff00', isEnemy: true,
+            bouncesLeft: 2 // 벽에 2번 튕김
+        });
+    }
+}
+
+// 패턴 4: 가로 레이저 (측면 기습)
+function fireHorizontalLaser() {
+    patterns.horizLaser.lastUsed = frameCount;
+    let fromLeft = Math.random() > 0.5;
+    // 플레이어가 있는 Y축 근처를 노림
+    let yTarget = Math.random() * 400 + 300; 
+    
+    spawnBullet({
+        x: fromLeft ? 0 : canvas.width,
+        y: yTarget,
+        angle: fromLeft ? 0 : Math.PI,
+        speed: 12, size: 10, width: 80, height: 10,
+        color: '#d0f', isEnemy: true, isLaser: true
+    });
+}
+
+
+// --- 4. 메인 업데이트 루프 ---
 
 function resetGame() {
     score = 0;
@@ -178,7 +157,7 @@ function resetGame() {
     isGameOver = false;
     isVictory = false;
     
-    // 쿨타임 초기화
+    // 패턴 쿨타임 초기화
     Object.keys(patterns).forEach(k => patterns[k].lastUsed = -999);
     
     gameLoop();
@@ -188,66 +167,65 @@ function update() {
     if (isGameOver || isVictory) return;
     frameCount++;
 
-    // 배경 별
-    stars.forEach(star => {
-        star.y += star.speed;
-        if (star.y > canvas.height) {
-            star.y = 0; star.x = Math.random() * canvas.width;
-        }
+    // 배경 별 흐르기
+    stars.forEach(s => {
+        s.y += s.speed;
+        if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
     });
 
-    // 플레이어 이동
+    // 플레이어 이동 (Shift: 저속)
     let isFocus = keys['ShiftLeft'] || keys['ShiftRight'];
     let moveSpeed = isFocus ? player.speed / 2.5 : player.speed;
+    
     if (keys['ArrowLeft'] && player.x > 10) player.x -= moveSpeed;
     if (keys['ArrowRight'] && player.x < canvas.width - 10) player.x += moveSpeed;
     if (keys['ArrowUp'] && player.y > 10) player.y -= moveSpeed;
     if (keys['ArrowDown'] && player.y < canvas.height - 10) player.y += moveSpeed;
 
-    // 플레이어 사격
+    // 플레이어 사격 (고속 연사)
     if (frameCount % 4 === 0) {
-        spawnBullet({
-            x: player.x - 10, y: player.y, angle: -Math.PI/2, speed: 20, 
-            size: 3, width: 4, height: 15, color: '#aaf', isEnemy: false
-        });
-        spawnBullet({
-            x: player.x + 10, y: player.y, angle: -Math.PI/2, speed: 20, 
-            size: 3, width: 4, height: 15, color: '#aaf', isEnemy: false
-        });
+        spawnBullet({ x: player.x-10, y: player.y, angle: -Math.PI/2, speed: 20, size: 3, width:4, height:15, color: '#aaf', isEnemy: false });
+        spawnBullet({ x: player.x+10, y: player.y, angle: -Math.PI/2, speed: 20, size: 3, width:4, height:15, color: '#aaf', isEnemy: false });
     }
 
-    // --- ★ 보스 페이즈 및 패턴 로직 ---
+    // --- ★ 보스 페이즈 관리 ---
     let hpRatio = boss.hp / MAX_BOSS_HP;
     
-    // 페이즈 결정
-    if (hpRatio <= 0.3) { boss.phase = 3; boss.color = '#aa00ff'; }
-    else if (hpRatio <= 0.6) { boss.phase = 2; boss.color = '#ff3333'; }
-    else { boss.phase = 1; boss.color = '#00ccff'; }
+    if (hpRatio <= 0.3) { 
+        boss.phase = 3; boss.color = '#9900ff'; // 3페이즈: 보라 (발악)
+    } else if (hpRatio <= 0.6) { 
+        boss.phase = 2; boss.color = '#ff3333'; // 2페이즈: 빨강 (광폭)
+    } else { 
+        boss.phase = 1; boss.color = '#00ccff'; // 1페이즈: 파랑 (통상)
+    }
 
     // 보스 움직임 (8자)
-    boss.x = 300 + Math.cos(frameCount / 60) * 120;
-    boss.y = 150 + Math.sin(frameCount / 45) * 40;
+    boss.x = 300 + Math.cos(frameCount / 70) * 120;
+    boss.y = 150 + Math.sin(frameCount / 50) * 40;
 
-    // 패턴 발동 로직 (최대 2개까지만 동시 실행되도록 확률 조절)
-    let activePatternCount = 0; 
-    // (여기서는 간단히 프레임 체크로 흉내만 냄. 쿨타임이 겹치면 동시 발사됨)
-
+    // --- ★ 페이즈별 패턴 실행 ---
+    // (동시에 너무 많은 패턴이 나오지 않게 제어)
+    
     if (boss.phase === 1) {
-        // [1페이즈] 통상: 조준탄만 쏨
+        // [1페이즈] 조준탄 위주
         if (canUsePattern('aimedShot')) fireAimedShot();
     }
     else if (boss.phase === 2) {
-        // [2페이즈] 광란: 튕기는 탄 + 마구잡이 탄
-        // 두 패턴의 쿨타임이 다르게 돌아가므로 가끔 겹침
-        if (canUsePattern('chaosBurst')) fireChaosBurst();
+        // [2페이즈] 튕기는 탄 + 광탄 (최대 2개 패턴 혼합)
         if (canUsePattern('wallBounce')) fireWallBounce();
+        
+        // 튕기는 탄 쿨타임 중일 때 광탄 발사
+        if (frameCount - patterns.wallBounce.lastUsed > 60) {
+             if (canUsePattern('chaosBurst')) fireChaosBurst();
+        }
     }
     else if (boss.phase === 3) {
-        // [3페이즈] 지옥: 가로 레이저 + 2페이즈 패턴 일부
+        // [3페이즈] 가로 레이저 + 모든 패턴 혼합
         if (canUsePattern('horizLaser')) fireHorizontalLaser();
-        if (canUsePattern('chaosBurst')) fireChaosBurst(); 
-        // 3페이즈는 더 어렵게: 튕기는 탄도 가끔 섞음
-        if (Math.random() < 0.01 && canUsePattern('wallBounce')) fireWallBounce();
+        
+        // 레이저 쏘는 중이 아닐 때 다른 패턴 섞기
+        if (canUsePattern('chaosBurst') && Math.random() < 0.7) fireChaosBurst();
+        if (canUsePattern('aimedShot') && Math.random() < 0.5) fireAimedShot();
     }
 
     // --- 총알 업데이트 ---
@@ -256,38 +234,36 @@ function update() {
         b.x += b.vx;
         b.y += b.vy;
 
-        // ★ 벽 튕기기 로직
+        // 벽 튕기기 로직
         if (b.isEnemy && b.bouncesLeft > 0) {
             if (b.x < 0 || b.x > canvas.width) {
-                b.vx *= -1; // X축 반전
+                b.vx *= -1; // 방향 반전
                 b.bouncesLeft--;
             }
-            // (옵션: 바닥/천장은 안 튕기게 함. 필요하면 || b.y < 0 등 추가)
         }
 
         // 화면 밖 제거
         if (b.x < -100 || b.x > canvas.width + 100 || b.y < -100 || b.y > canvas.height + 100) {
             bullets.splice(i, 1);
-            i--;
-            continue;
+            i--; continue;
         }
 
         // 충돌 체크
         if (b.isEnemy) {
             let hit = false;
-            // 레이저(직사각형) vs 플레이어(원) 충돌은 약식으로 사각형vs점 체크
+            // 레이저(직사각형) vs 점
             if (b.isLaser) {
-                // 레이저 히트박스 계산 (중심 기준)
                 if (Math.abs(b.x - player.x) < b.width/2 + player.hitboxSize &&
-                    Math.abs(b.y - player.y) < b.height/2 + player.hitboxSize) {
-                    hit = true;
-                }
-            } else {
-                // 일반 탄 (원형)
-                let dx = b.x - player.x;
-                let dy = b.y - player.y;
-                if (Math.sqrt(dx*dx + dy*dy) < player.hitboxSize + b.size) {
-                    hit = true;
+                    Math.abs(b.y - player.y) < b.height/2 + player.hitboxSize) hit = true;
+            } 
+            // 일반탄(원) vs 점
+            else {
+                let dist = Math.sqrt((b.x-player.x)**2 + (b.y-player.y)**2);
+                if (dist < player.hitboxSize + b.size) hit = true;
+                
+                // 그레이즈(스침)
+                else if (dist < player.width && !b.grazed) {
+                    score += 5; b.grazed = true;
                 }
             }
 
@@ -304,22 +280,21 @@ function update() {
             }
         }
     }
-    
-    // UI 업데이트
     scoreBoard.innerText = `SCORE: ${score} | PHASE: ${boss.phase}`;
 }
 
+
+// --- 5. 그리기 ---
 function draw() {
-    ctx.fillStyle = '#111';
+    ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 별
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    stars.forEach(s => { ctx.fillRect(s.x, s.y, s.size, s.size); });
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill(); });
 
-    // 보스
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = boss.color;
+    // 보스 (빛나는 효과)
+    ctx.shadowBlur = 20; ctx.shadowColor = boss.color;
     ctx.fillStyle = boss.color;
     ctx.fillRect(boss.x - boss.width/2, boss.y - boss.height/2, boss.width, boss.height);
     ctx.shadowBlur = 0;
@@ -327,9 +302,9 @@ function draw() {
     // 플레이어
     ctx.fillStyle = player.color;
     ctx.fillRect(player.x - 10, player.y - 15, 20, 30);
+    // 판정점 (Shift시 표시)
     if (keys['ShiftLeft'] || keys['ShiftRight']) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2);
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2);
         ctx.fillStyle = 'white'; ctx.fill(); ctx.strokeStyle = 'red'; ctx.stroke();
     }
 
@@ -337,17 +312,17 @@ function draw() {
     bullets.forEach(b => {
         ctx.fillStyle = b.color;
         if (b.isLaser) {
-            // 레이저는 직사각형
+            // 레이저: 빛나는 막대
+            ctx.shadowBlur = 10; ctx.shadowColor = b.color;
             ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+            ctx.shadowBlur = 0;
         } else {
-            // 일반탄은 원
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.size, 0, Math.PI*2);
-            ctx.fill();
+            // 일반탄: 원
+            ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
         }
     });
 
-    // 보스 체력바
+    // UI: 보스 체력바
     if (!isVictory) {
         let hpPer = Math.max(0, boss.hp / MAX_BOSS_HP);
         ctx.fillStyle = '#333'; ctx.fillRect(20, 20, canvas.width-40, 10);
@@ -355,18 +330,31 @@ function draw() {
         ctx.strokeStyle = '#fff'; ctx.strokeRect(20, 20, canvas.width-40, 10);
     }
 
-    // 게임 오버/승리 텍스트
+    // 결과 화면
     if (isGameOver || isVictory) {
-        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
         ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle = isVictory ? '#ffff00' : '#ff0000';
-        ctx.font = '40px monospace';
+        
         ctx.textAlign = 'center';
-        ctx.fillText(isVictory ? "VICTORY!" : "GAME OVER", canvas.width/2, canvas.height/2);
-        ctx.fillStyle = 'white';
-        ctx.font = '20px monospace';
-        ctx.fillText("Press 'R' to Restart", canvas.width/2, canvas.height/2 + 50);
+        if (isVictory) {
+            ctx.fillStyle = '#ffff00'; ctx.font = 'bold 50px Courier New';
+            ctx.fillText("STAGE CLEAR!", canvas.width/2, canvas.height/2 - 20);
+        } else {
+            ctx.fillStyle = '#ff0000'; ctx.font = 'bold 50px Courier New';
+            ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 20);
+        }
+        
+        ctx.fillStyle = '#fff'; ctx.font = '20px Courier New';
+        ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 40);
+        ctx.fillText("Press [R] to Restart", canvas.width/2, canvas.height/2 + 80);
     }
+}
+
+function gameLoop() {
+    update();
+    draw();
+    if (!isGameOver && !isVictory) requestAnimationFrame(gameLoop);
+    else requestAnimationFrame(draw);
 }
 
 gameLoop();
