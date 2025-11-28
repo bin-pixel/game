@@ -1,360 +1,229 @@
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const scoreBoard = document.getElementById('scoreBoard');
+const ui = document.getElementById('debug');
+const hpBar = document.getElementById('bossHp');
+const msgBox = document.getElementById('msg');
 
-// --- 1. 게임 전역 변수 ---
+// --- 엔진 설정 ---
 let score = 0;
-let frameCount = 0;
-let isGameOver = false;
-let isVictory = false;
+let frame = 0;
+let state = 'play'; // play, over, clear
 
-// 플레이어 설정
-const player = { 
-    x: 300, y: 700, 
-    width: 30, height: 40, 
-    hitboxSize: 4, 
-    color: '#ff0000', 
-    speed: 5 
-};
+const player = { x: 300, y: 700, r: 3, speed: 5, invul: 0 };
+const boss = { x: 300, y: 150, r: 30, hp: 30000, maxHp: 30000, phase: 1, angle: 0 };
+let bullets = [];
+const keys = {};
 
-// 배경 별 (Starfield)
-let stars = [];
-for(let i=0; i<100; i++) {
-    stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 2 + 0.5,
-        speed: Math.random() * 4 + 1
-    });
-}
-
-// 오브젝트
-let bullets = []; 
-const MAX_BOSS_HP = 8000; // 체력 설정
-let boss = { 
-    x: 300, y: 150, 
-    width: 60, height: 60, 
-    color: '#00ccff', 
-    hp: MAX_BOSS_HP,
-    angle: 0,
-    phase: 1
-};
-
-// 키 입력 상태
-let keys = {};
-window.addEventListener('keydown', e => {
-    keys[e.code] = true;
-    if (e.code === 'KeyR' && (isGameOver || isVictory)) resetGame();
-});
-window.addEventListener('keyup', e => keys[e.code] = false);
-
-
-// --- 2. 패턴 관리 시스템 (Pattern Manager) ---
-// 각 패턴의 쿨타임(프레임)과 마지막 사용 시점 저장
-const patterns = {
-    aimedShot:  { cooldown: 90,  lastUsed: -999 }, // 1.5초
-    chaosBurst: { cooldown: 200, lastUsed: -999 }, // 약 3초
-    wallBounce: { cooldown: 300, lastUsed: -999 }, // 5초
-    horizLaser: { cooldown: 150, lastUsed: -999 }  // 2.5초
-};
-
-// 패턴 사용 가능 여부 체크
-function canUsePattern(name) {
-    if (frameCount - patterns[name].lastUsed > patterns[name].cooldown) {
-        return true;
-    }
-    return false;
-}
-
-// --- 3. 총알 생성 및 패턴 함수들 ---
-
-// 통합 총알 생성기
-function spawnBullet(props) {
+// --- 총알 생성기 (고급 물리 엔진) ---
+function shoot(p) {
     bullets.push({
-        x: props.x, 
-        y: props.y,
-        vx: Math.cos(props.angle) * props.speed,
-        vy: Math.sin(props.angle) * props.speed,
-        size: props.size || 4,
-        color: props.color || '#fff',
-        isEnemy: props.isEnemy,
+        x: p.x, y: p.y,
+        vx: Math.cos(p.a) * p.s, vy: Math.sin(p.a) * p.s,
+        speed: p.s, angle: p.a,
+        r: p.r || 4, color: p.c || '#fff',
         
-        // 특수 기능
-        bouncesLeft: props.bouncesLeft || 0, // 튕김 횟수
-        isLaser: props.isLaser || false,     // 레이저 여부
-        width: props.width || props.size,    // 레이저용 크기
-        height: props.height || props.size
+        // 특수 속성
+        accel: p.accel || 0,      // 가속도
+        curve: p.curve || 0,      // 회전각
+        homing: p.homing || 0,    // 유도력
+        isLaser: p.isLaser,       // 레이저
+        w: p.w, h: p.h,           // 레이저 크기
+        bounce: p.bounce || 0,    // 벽 튕김
+        delay: p.delay || 0,      // 딜레이
+        isEnemy: true
     });
 }
 
-// 패턴 1: 조준탄 (플레이어 위치로 발사)
-function fireAimedShot() {
-    patterns.aimedShot.lastUsed = frameCount;
-    let dx = player.x - boss.x;
-    let dy = player.y - boss.y;
-    let aimAngle = Math.atan2(dy, dx);
-    
-    // 3발 부채꼴
-    for(let i=-1; i<=1; i++){
-        spawnBullet({
-            x: boss.x, y: boss.y, angle: aimAngle + (i * 0.15),
-            speed: 7, size: 6, color: '#ff5555', isEnemy: true
-        });
-    }
-}
+// --- 패턴 라이브러리 (총 33개) ---
+const patterns = {
+    // [Phase 1: Blue] - 규칙적이고 아름다운 탄막
+    1: () => { for(let i=0; i<12; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i*0.5, s:3, c:'#aaf'}); boss.angle+=0.1; },
+    2: () => { for(let i=0; i<36; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/36*i, s:2.5, c:'#fff', r:2}); },
+    3: () => { let aim=angleToP(); for(let i=-2; i<=2; i++) shoot({x:boss.x, y:boss.y, a:aim+i*0.1, s:5, c:'#0ff'}); },
+    4: () => { shoot({x:boss.x, y:boss.y, a:boss.angle, s:4, c:'#88f', curve:0.02}); shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI, s:4, c:'#88f', curve:0.02}); boss.angle+=0.2; },
+    5: () => { for(let i=0; i<6; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i, s:3+Math.sin(frame/10), c:'#ccf'}); boss.angle+=0.05; },
+    6: () => { shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:Math.random()*3+2, c:'#44f'}); },
+    7: () => { for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI/2*i, s:4, c:'#fff', r:5}); boss.angle-=0.03; },
+    8: () => { let a=angleToP(); shoot({x:boss.x, y:boss.y, a:a, s:2, accel:0.1, c:'#f0f'}); },
+    9: () => { for(let i=0; i<8; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i*0.8, s:3, c:'#aaf', delay:30}); boss.angle+=0.15; },
+    10: () => { shoot({x:boss.x, y:boss.y, a:Math.sin(frame/20)*2, s:4, c:'#0ff'}); },
+    11: () => { for(let i=0; i<3; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i*2, s:3, c:'#ddf', r:6}); boss.angle+=0.137; },
 
-// 패턴 2: 카오스 버스트 (전방위 난사)
-function fireChaosBurst() {
-    patterns.chaosBurst.lastUsed = frameCount;
-    for (let i = 0; i < 30; i++) {
-        spawnBullet({
-            x: boss.x, y: boss.y,
-            angle: Math.random() * Math.PI * 2,
-            speed: Math.random() * 4 + 3,
-            size: 5, color: '#ffaa00', isEnemy: true
-        });
-    }
-}
+    // [Phase 2: Red] - 빠르고 불규칙
+    12: () => { for(let i=0; i<5; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*6, s:Math.random()*5+3, c:'#f55'}); },
+    13: () => { for(let i=0; i<16; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/16*i+boss.angle, s:5, c:'#0f0', bounce:2}); boss.angle+=0.05; },
+    14: () => { shoot({x:boss.x, y:boss.y, a:angleToP(), s:8, c:'#f00', r:8}); },
+    15: () => { for(let i=0; i<2; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI*i, s:4, c:'#ff0', curve:0.04}); shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI*i, s:4, c:'#ff0', curve:-0.04}); boss.angle+=0.2; },
+    16: () => { shoot({x:Math.random()*600, y:Math.random()*300, a:Math.PI/2, s:0, accel:0.2, c:'#f80', r:5}); },
+    17: () => { for(let i=0; i<10; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+i*0.6, s:2, accel:0.05, c:'#faa'}); boss.angle+=0.3; },
+    18: () => { let a=angleToP(); for(let i=-3; i<=3; i++) shoot({x:boss.x, y:boss.y, a:a+i*0.2, s:6, c:'#f00', bounce:1}); },
+    19: () => { shoot({x:0, y:player.y, a:0, s:7, c:'#f0f', w:40, h:8, isLaser:true}); },
+    20: () => { shoot({x:600, y:player.y, a:Math.PI, s:7, c:'#f0f', w:40, h:8, isLaser:true}); },
+    21: () => { for(let i=0; i<20; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/20*i, s:2, accel:0.1, c:'#fff'}); },
+    22: () => { shoot({x:boss.x, y:boss.y, a:boss.angle, s:4, c:'#f88', curve:Math.sin(frame/30)*0.1}); boss.angle+=0.1; },
 
-// 패턴 3: 벽 튕기기 (초록색 탄)
-function fireWallBounce() {
-    patterns.wallBounce.lastUsed = frameCount;
-    for (let i = 0; i < 16; i++) {
-        spawnBullet({
-            x: boss.x, y: boss.y,
-            angle: (Math.PI * 2 / 16) * i + frameCount/100, // 회전하며 발사
-            speed: 5, size: 7, color: '#00ff00', isEnemy: true,
-            bouncesLeft: 2 // 벽에 2번 튕김
-        });
-    }
-}
+    // [Phase 3: Purple] - 지옥 (유도, 레이저)
+    23: () => { shoot({x:boss.x, y:boss.y, a:angleToP(), s:3, c:'#a0f', homing:0.05}); },
+    24: () => { shoot({x:0, y:Math.random()*600+100, a:0, s:15, c:'#f0f', w:600, h:20, isLaser:true}); },
+    25: () => { for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI/2*i, s:3, c:'#90f', curve:0.03}); for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:boss.angle+Math.PI/2*i, s:3, c:'#90f', curve:-0.03}); boss.angle+=0.1; },
+    26: () => { for(let i=0; i<30; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*7, s:Math.random()*2+1, c:'#fff', r:2}); },
+    27: () => { let r=200; for(let i=0; i<10; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2, accel:0.05, c:'#f0f', homing:0.01}); },
+    28: () => { shoot({x:boss.x, y:boss.y, a:boss.angle, s:10, c:'#f0f', w:10, h:800, isLaser:true}); boss.angle+=0.15; },
+    29: () => { shoot({x:boss.x, y:boss.y, a:angleToP()+Math.random()-0.5, s:4, c:'#505', bounce:3}); },
+    30: () => { for(let i=0; i<8; i++) shoot({x:boss.x, y:boss.y, a:i, s:2, c:'#fff', curve:0.05}); for(let i=0; i<8; i++) shoot({x:boss.x, y:boss.y, a:i, s:2, c:'#fff', curve:-0.05}); },
+    31: () => { shoot({x:boss.x, y:boss.y, a:boss.angle, s:6, c:'#f00', r:10, homing:0.1}); boss.angle+=1; },
+    32: () => { if(frame%2===0) shoot({x:boss.x+Math.cos(frame/10)*100, y:boss.y, a:Math.PI/2, s:5, c:'#a0a'}); },
+    33: () => { for(let i=0; i<3; i++) shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:12, c:'#f0f', w:10, h:800, isLaser:true}); }
+};
 
-// 패턴 4: 가로 레이저 (측면 기습)
-function fireHorizontalLaser() {
-    patterns.horizLaser.lastUsed = frameCount;
-    let fromLeft = Math.random() > 0.5;
-    // 플레이어가 있는 Y축 근처를 노림
-    let yTarget = Math.random() * 400 + 300; 
-    
-    spawnBullet({
-        x: fromLeft ? 0 : canvas.width,
-        y: yTarget,
-        angle: fromLeft ? 0 : Math.PI,
-        speed: 12, size: 10, width: 80, height: 10,
-        color: '#d0f', isEnemy: true, isLaser: true
-    });
-}
-
-
-// --- 4. 메인 업데이트 루프 ---
-
-function resetGame() {
-    score = 0;
-    bullets = [];
-    player.x = 300; player.y = 700;
-    boss.hp = MAX_BOSS_HP;
-    boss.phase = 1;
-    isGameOver = false;
-    isVictory = false;
-    
-    // 패턴 쿨타임 초기화
-    Object.keys(patterns).forEach(k => patterns[k].lastUsed = -999);
-    
-    gameLoop();
-}
+// --- 메인 로직 ---
+let patternTimer = 0;
+let currentPattern = 1;
 
 function update() {
-    if (isGameOver || isVictory) return;
-    frameCount++;
-
-    // 배경 별 흐르기
-    stars.forEach(s => {
-        s.y += s.speed;
-        if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
-    });
-
-    // 플레이어 이동 (Shift: 저속)
-    let isFocus = keys['ShiftLeft'] || keys['ShiftRight'];
-    let moveSpeed = isFocus ? player.speed / 2.5 : player.speed;
+    if (state !== 'play') return;
+    frame++;
     
-    if (keys['ArrowLeft'] && player.x > 10) player.x -= moveSpeed;
-    if (keys['ArrowRight'] && player.x < canvas.width - 10) player.x += moveSpeed;
-    if (keys['ArrowUp'] && player.y > 10) player.y -= moveSpeed;
-    if (keys['ArrowDown'] && player.y < canvas.height - 10) player.y += moveSpeed;
-
-    // 플레이어 사격 (고속 연사)
-    if (frameCount % 4 === 0) {
-        spawnBullet({ x: player.x-10, y: player.y, angle: -Math.PI/2, speed: 20, size: 3, width:4, height:15, color: '#aaf', isEnemy: false });
-        spawnBullet({ x: player.x+10, y: player.y, angle: -Math.PI/2, speed: 20, size: 3, width:4, height:15, color: '#aaf', isEnemy: false });
-    }
-
-    // --- ★ 보스 페이즈 관리 ---
-    let hpRatio = boss.hp / MAX_BOSS_HP;
+    // 플레이어 이동
+    let spd = keys['ShiftLeft']||keys['ShiftRight'] ? 2 : 5;
+    if(keys['ArrowLeft'] && player.x>5) player.x-=spd;
+    if(keys['ArrowRight'] && player.x<595) player.x+=spd;
+    if(keys['ArrowUp'] && player.y>5) player.y-=spd;
+    if(keys['ArrowDown'] && player.y<795) player.y+=spd;
     
-    if (hpRatio <= 0.3) { 
-        boss.phase = 3; boss.color = '#9900ff'; // 3페이즈: 보라 (발악)
-    } else if (hpRatio <= 0.6) { 
-        boss.phase = 2; boss.color = '#ff3333'; // 2페이즈: 빨강 (광폭)
-    } else { 
-        boss.phase = 1; boss.color = '#00ccff'; // 1페이즈: 파랑 (통상)
+    // 플레이어 사격
+    if(frame%4===0) {
+        bullets.push({x:player.x-10, y:player.y, vx:0, vy:-20, s:20, r:3, c:'#afa', isEnemy:false});
+        bullets.push({x:player.x+10, y:player.y, vx:0, vy:-20, s:20, r:3, c:'#afa', isEnemy:false});
     }
 
-    // 보스 움직임 (8자)
-    boss.x = 300 + Math.cos(frameCount / 70) * 120;
-    boss.y = 150 + Math.sin(frameCount / 50) * 40;
+    // 보스 이동
+    boss.x = 300 + Math.cos(frame/100)*150;
+    boss.y = 150 + Math.sin(frame/70)*50;
 
-    // --- ★ 페이즈별 패턴 실행 ---
-    // (동시에 너무 많은 패턴이 나오지 않게 제어)
+    // 패턴 실행
+    patternTimer++;
+    if (patternTimer > 180) {
+        patternTimer = 0;
+        let min = (boss.phase-1)*11 + 1; 
+        let max = min + 10;
+        currentPattern = Math.floor(Math.random()*(max-min+1)) + min;
+    }
+    if (patterns[currentPattern]) {
+        let freq = 5;
+        if ([2, 9, 13, 15, 25, 28, 30].includes(currentPattern)) freq = 20;
+        if ([6, 16, 26, 32].includes(currentPattern)) freq = 2;
+        if (frame % freq === 0) patterns[currentPattern]();
+    }
+
+    // 페이즈 관리
+    let hpR = boss.hp/boss.maxHp;
+    let oldPhase = boss.phase;
+    if (hpR <= 0.33) boss.phase = 3;
+    else if (hpR <= 0.66) boss.phase = 2;
+    else boss.phase = 1;
+
+    if(oldPhase !== boss.phase) {
+        msgBox.style.display = 'block';
+        msgBox.innerText = `PHASE ${boss.phase} START!`;
+        setTimeout(()=>msgBox.style.display='none', 2000);
+        for(let b of bullets) if(b.isEnemy) b.dead = true;
+    }
     
-    if (boss.phase === 1) {
-        // [1페이즈] 조준탄 위주
-        if (canUsePattern('aimedShot')) fireAimedShot();
-    }
-    else if (boss.phase === 2) {
-        // [2페이즈] 튕기는 탄 + 광탄 (최대 2개 패턴 혼합)
-        if (canUsePattern('wallBounce')) fireWallBounce();
-        
-        // 튕기는 탄 쿨타임 중일 때 광탄 발사
-        if (frameCount - patterns.wallBounce.lastUsed > 60) {
-             if (canUsePattern('chaosBurst')) fireChaosBurst();
-        }
-    }
-    else if (boss.phase === 3) {
-        // [3페이즈] 가로 레이저 + 모든 패턴 혼합
-        if (canUsePattern('horizLaser')) fireHorizontalLaser();
-        
-        // 레이저 쏘는 중이 아닐 때 다른 패턴 섞기
-        if (canUsePattern('chaosBurst') && Math.random() < 0.7) fireChaosBurst();
-        if (canUsePattern('aimedShot') && Math.random() < 0.5) fireAimedShot();
-    }
+    hpBar.style.width = (hpR*100)+'%';
+    hpBar.style.background = boss.phase===1?'#0cf' : boss.phase===2?'#f33' : '#a0f';
 
-    // --- 총알 업데이트 ---
-    for (let i = 0; i < bullets.length; i++) {
+    // 총알 업데이트
+    for (let i=0; i<bullets.length; i++) {
         let b = bullets[i];
+        if(b.dead) continue;
+
+        if(b.accel) b.speed += b.accel;
+        if(b.delay > 0) { b.delay--; continue; }
+
+        if(b.homing && b.isEnemy) {
+            let targetA = Math.atan2(player.y - b.y, player.x - b.x);
+            let diff = targetA - b.angle;
+            while(diff < -Math.PI) diff += Math.PI*2;
+            while(diff > Math.PI) diff -= Math.PI*2;
+            b.angle += diff * b.homing;
+        }
+
+        if(b.curve) b.angle += b.curve;
+
+        b.vx = Math.cos(b.angle) * b.speed;
+        b.vy = Math.sin(b.angle) * b.speed;
         b.x += b.vx;
         b.y += b.vy;
 
-        // 벽 튕기기 로직
-        if (b.isEnemy && b.bouncesLeft > 0) {
-            if (b.x < 0 || b.x > canvas.width) {
-                b.vx *= -1; // 방향 반전
-                b.bouncesLeft--;
-            }
+        if(b.bounce > 0) {
+            if(b.x<0 || b.x>600) { b.vx*=-1; b.angle=Math.PI-b.angle; b.bounce--; b.x+=b.vx; }
         }
 
-        // 화면 밖 제거
-        if (b.x < -100 || b.x > canvas.width + 100 || b.y < -100 || b.y > canvas.height + 100) {
-            bullets.splice(i, 1);
-            i--; continue;
-        }
+        if(b.x<-100 || b.x>700 || b.y<-100 || b.y>900) b.dead = true;
 
-        // 충돌 체크
         if (b.isEnemy) {
             let hit = false;
-            // 레이저(직사각형) vs 점
             if (b.isLaser) {
-                if (Math.abs(b.x - player.x) < b.width/2 + player.hitboxSize &&
-                    Math.abs(b.y - player.y) < b.height/2 + player.hitboxSize) hit = true;
-            } 
-            // 일반탄(원) vs 점
-            else {
-                let dist = Math.sqrt((b.x-player.x)**2 + (b.y-player.y)**2);
-                if (dist < player.hitboxSize + b.size) hit = true;
-                
-                // 그레이즈(스침)
-                else if (dist < player.width && !b.grazed) {
-                    score += 5; b.grazed = true;
-                }
+                if (Math.abs(b.x-player.x)<b.w/2+2 && Math.abs(b.y-player.y)<b.h/2+2) hit=true;
+            } else {
+                let dist = Math.hypot(b.x-player.x, b.y-player.y);
+                if (dist < player.hitboxSize + b.r) hit = true;
+                if (dist < 20) score++;
             }
-
-            if (hit) isGameOver = true;
-
+            if(hit) state='over';
         } else {
-            // 보스 피격
-            if (Math.abs(b.x - boss.x) < boss.width/2 && Math.abs(b.y - boss.y) < boss.height/2) {
-                boss.hp -= 15;
-                score += 10;
-                bullets.splice(i, 1);
-                i--;
-                if (boss.hp <= 0) isVictory = true;
+            if(Math.abs(b.x-boss.x)<30 && Math.abs(b.y-boss.y)<30) {
+                boss.hp -= 20; score += 10; b.dead = true;
+                if(boss.hp <= 0) state = 'clear';
             }
         }
     }
-    scoreBoard.innerText = `SCORE: ${score} | PHASE: ${boss.phase}`;
+    bullets = bullets.filter(b => !b.dead);
+    ui.innerText = `SCORE: ${score} | PHASE: ${boss.phase} | PATTERN: ${currentPattern}`;
 }
 
-
-// --- 5. 그리기 ---
 function draw() {
-    ctx.fillStyle = '#050505';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+    ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, 600, 800);
+    
     // 별
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill(); });
-
-    // 보스 (빛나는 효과)
-    ctx.shadowBlur = 20; ctx.shadowColor = boss.color;
-    ctx.fillStyle = boss.color;
-    ctx.fillRect(boss.x - boss.width/2, boss.y - boss.height/2, boss.width, boss.height);
-    ctx.shadowBlur = 0;
-
-    // 플레이어
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x - 10, player.y - 15, 20, 30);
-    // 판정점 (Shift시 표시)
-    if (keys['ShiftLeft'] || keys['ShiftRight']) {
-        ctx.beginPath(); ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2);
-        ctx.fillStyle = 'white'; ctx.fill(); ctx.strokeStyle = 'red'; ctx.stroke();
-    }
-
-    // 총알
+    ctx.fillStyle = '#555';
     bullets.forEach(b => {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.angle);
         ctx.fillStyle = b.color;
-        if (b.isLaser) {
-            // 레이저: 빛나는 막대
-            ctx.shadowBlur = 10; ctx.shadowColor = b.color;
-            ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
-            ctx.shadowBlur = 0;
-        } else {
-            // 일반탄: 원
-            ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
-        }
+        if(b.isLaser) ctx.fillRect(-b.w/2, -b.h/2, b.w, b.h);
+        else { ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill(); }
+        ctx.restore();
     });
 
-    // UI: 보스 체력바
-    if (!isVictory) {
-        let hpPer = Math.max(0, boss.hp / MAX_BOSS_HP);
-        ctx.fillStyle = '#333'; ctx.fillRect(20, 20, canvas.width-40, 10);
-        ctx.fillStyle = boss.color; ctx.fillRect(20, 20, (canvas.width-40)*hpPer, 10);
-        ctx.strokeStyle = '#fff'; ctx.strokeRect(20, 20, canvas.width-40, 10);
+    // Player
+    ctx.fillStyle = 'red'; ctx.fillRect(player.x-15, player.y-15, 30, 30);
+    if(keys['ShiftLeft']||keys['ShiftRight']) {
+        ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,4,0,Math.PI*2); ctx.fill();
     }
 
-    // 결과 화면
-    if (isGameOver || isVictory) {
-        ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        
-        ctx.textAlign = 'center';
-        if (isVictory) {
-            ctx.fillStyle = '#ffff00'; ctx.font = 'bold 50px Courier New';
-            ctx.fillText("STAGE CLEAR!", canvas.width/2, canvas.height/2 - 20);
-        } else {
-            ctx.fillStyle = '#ff0000'; ctx.font = 'bold 50px Courier New';
-            ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 20);
-        }
-        
-        ctx.fillStyle = '#fff'; ctx.font = '20px Courier New';
-        ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 40);
-        ctx.fillText("Press [R] to Restart", canvas.width/2, canvas.height/2 + 80);
+    // Boss
+    ctx.fillStyle = hpBar.style.background; 
+    ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
+    
+    if(state !== 'play') {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,600,800);
+        ctx.fillStyle = '#fff'; ctx.font = '50px Courier'; ctx.textAlign='center';
+        ctx.fillText(state==='clear'?"VICTORY!":"GAME OVER", 300, 400);
+        ctx.font = '20px Courier'; ctx.fillText("[R] Retry", 300, 450);
     }
 }
 
-function gameLoop() {
-    update();
-    draw();
-    if (!isGameOver && !isVictory) requestAnimationFrame(gameLoop);
-    else requestAnimationFrame(draw);
+function loop() {
+    update(); draw(); requestAnimationFrame(loop);
+}
+function angleToP() { return Math.atan2(player.y-boss.y, player.x-boss.x); }
+function resetGame() {
+    boss.hp = boss.maxHp; boss.phase = 1; score = 0; bullets.length=0; state='play';
 }
 
-gameLoop();
+window.addEventListener('keydown', e=>keys[e.code]=true);
+window.addEventListener('keyup', e=>keys[e.code]=false);
+loop();
