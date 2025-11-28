@@ -22,13 +22,12 @@ const player = {
 
 const boss = { 
     x: 300, y: 150, r: 30, 
-    hp: 20000, maxHp: 50000, // 체력 약간 상향
+    hp: 25000, maxHp: 25000, 
     phase: 1, angle: 0,
     transitioning: false,
     freeze: false,
     moveTimer: 0,
-    // ★ 궁극기 상태 변수
-    ultState: 'none', // none, gathering, exploding
+    ultState: 'none', 
     ultTimer: 0
 };
 
@@ -50,7 +49,6 @@ function shoot(p) {
         lifeTime: p.homing ? 300 : 9999, timer: 0, 
         bounce: p.bounce || 0, delay: p.delay || 0, grazed: false, 
         isEnemy: p.isEnemy !== undefined ? p.isEnemy : true,
-        // ★ 블랙홀 전용 속성 (빨려들어가는 탄)
         isSuction: p.isSuction || false 
     });
 }
@@ -60,7 +58,7 @@ function bossShoot(p) {
     let originY = p.y !== undefined ? p.y : boss.y;
     if (p.x === undefined) shoot({ ...p, x: boss.x, y: boss.y });
     else shoot(p);
-    if (bossClone && p.x === undefined && !boss.ultState === 'none') {
+    if (bossClone && p.x === undefined && boss.ultState === 'none') {
         shoot({ ...p, x: bossClone.x, y: bossClone.y });
     }
 }
@@ -134,8 +132,13 @@ function pickPatterns() {
     let pool = [];
     if (p === 1) pool = [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6]; 
     if (p === 2) pool = [7, 7, 8, 9, 9, 10, 11]; 
+    // ★ 3페이즈: 1,2페이즈 패턴도 모두 포함 (요청사항 반영)
     if (p === 3) {
-        pool = [12, 12, 13, 13, 14, 14, 15, 16, 17, 18]; 
+        pool = [
+            1,2,3,4,5,6,        // Phase 1
+            7,8,9,10,11,        // Phase 2
+            12,12,13,13,14,14,15,16,17,18 // Phase 3 (가중치)
+        ]; 
     }
 
     for(let i=0; i<count; i++) {
@@ -161,9 +164,18 @@ function startPhase2() {
 function startPhase3() {
     boss.transitioning = true;
     msgBox.style.display = 'block'; msgBox.innerText = "PHASE 3: APOCALYPSE"; msgBox.style.color = '#a0f';
-    gameScreen.classList.add('shake-effect'); gameScreen.classList.add('invert-effect'); gameScreen.classList.add('phase3-effect');
+    
+    // ★ 3페이즈 진입 효과: 반전(Invert)은 0.1초만!
+    gameScreen.classList.add('shake-effect'); 
+    gameScreen.classList.add('phase3-effect'); // 붉은 효과는 계속
+    
+    gameScreen.classList.add('invert-effect'); // 반전 켜기
     setTimeout(() => {
-        gameScreen.classList.remove('shake-effect'); gameScreen.classList.remove('invert-effect'); gameScreen.classList.remove('phase3-effect');
+        gameScreen.classList.remove('invert-effect'); // 0.1초 뒤 끄기
+    }, 100);
+
+    setTimeout(() => {
+        gameScreen.classList.remove('shake-effect'); 
         msgBox.style.display = 'none'; boss.transitioning = false;
     }, 2000);
 
@@ -178,62 +190,58 @@ function startPhase3() {
     }, 1000);
 }
 
-// ★ 궁극기: 블랙홀 시작 함수
+// 궁극기: 블랙홀 시작 함수
 function startBlackHole() {
     if (boss.ultState !== 'none') return;
     
-    boss.ultState = 'gathering'; // 기 모으기 상태
+    boss.ultState = 'gathering'; 
     boss.ultTimer = 0;
-    boss.freeze = true; // 이동 멈춤
-    bossClone = null; // 분신 제거
+    boss.freeze = true; 
+    bossClone = null; 
     
-    // 화면 연출
     msgBox.style.display = 'block'; 
     msgBox.innerText = "ULTIMATE: BLACK HOLE"; 
     msgBox.style.color = '#000';
     msgBox.style.textShadow = '0 0 10px #fff';
-    gameScreen.classList.add('invert-effect'); // 흑백 반전 유지
+    gameScreen.classList.add('invert-effect'); 
     
-    // 기존 탄막 제거 (깨끗하게)
     bullets = [];
 }
 
 function updateBlackHole() {
     boss.ultTimer++;
     
-    // 1. 보스 중앙 이동 (부드럽게)
     boss.x += (300 - boss.x) * 0.1;
     boss.y += (400 - boss.y) * 0.1;
 
-    // 2. 플레이어 끌어당기기 (거리 비례 힘)
     let dx = boss.x - player.x;
     let dy = boss.y - player.y;
     let dist = Math.hypot(dx, dy);
     
-    // 당기는 힘: 거리가 멀수록 약하고, 가까우면 강함 (탈출 기회 제공)
-    // 하지만 너무 가까우면 못 빠져나감
-    let pullStrength = 3000 / (dist * dist + 100); 
-    if (pullStrength > 4) pullStrength = 4; // 최대 힘 제한
+    // 흡입력 (강화됨)
+    let pullStrength = 5000 / (dist * dist + 100); // 3000 -> 5000
+    if (pullStrength > 5.5) pullStrength = 5.5; // 최대 힘 증가
 
     player.x += dx * pullStrength * 0.05;
     player.y += dy * pullStrength * 0.05;
 
-    // 3. 빨려들어가는 탄환 생성 (화면 밖에서 중앙으로)
     if (frame % 4 === 0) {
         let angle = Math.random() * Math.PI * 2;
-        let r = 500; // 화면 밖 거리
+        let r = 500; 
         shoot({
             x: 300 + Math.cos(angle) * r,
             y: 400 + Math.sin(angle) * r,
-            a: angle + Math.PI, // 중앙을 향해
-            s: 4 + Math.random() * 3, // 속도 랜덤
-            c: '#90f', r: 3, 
-            isSuction: true // ★ 데미지 없고 느려지게만 하는 속성
+            a: angle + Math.PI, 
+            s: 4 + Math.random() * 3, 
+            c: '#90f', 
+            // ★ 파편 크기 2배 증가 (3 -> 6)
+            r: 6, 
+            isSuction: true 
         });
     }
 
-    // 4. 폭발 카운트다운 완료
-    if (boss.ultTimer > 600) { // 약 6.5초 후 폭발
+    // ★ 지속시간 8초 (480프레임)로 증가
+    if (boss.ultTimer > 480) { 
         triggerExplosion(dist);
     }
 }
@@ -247,23 +255,19 @@ function triggerExplosion(playerDist) {
     gameScreen.classList.add('shake-effect');
     setTimeout(() => gameScreen.classList.remove('shake-effect'), 500);
 
-    // 데미지 계산 (거리에 반비례)
-    // 200px 이내면 피해 입음, 가까울수록 즉사
     if (playerDist < 250 && !godMode && player.invul <= 0) {
-        let damage = Math.floor((250 - playerDist) / 40); // 최대 6데미지
+        let damage = Math.floor((250 - playerDist) / 40); 
         if (damage < 1) damage = 1;
         
         player.hp -= damage;
         player.invul = 60;
         
-        // 피격 효과
-        gameScreen.style.backgroundColor = 'white'; // 눈뽕
+        gameScreen.style.backgroundColor = 'white'; 
         setTimeout(()=>gameScreen.style.backgroundColor='', 200);
 
         if (player.hp <= 0) state = 'over';
     }
 
-    // 탄막 클리어
     bullets = [];
 }
 
@@ -286,13 +290,10 @@ function update() {
         shoot({x:player.x+10, y:player.y, a:-Math.PI/2, s:15, r:3, c:'#afa', isEnemy:false});
     }
 
-    // ★ 궁극기 상태면 일반 패턴/이동 정지
     if (boss.ultState === 'gathering') {
         updateBlackHole();
-        // 분신 제거 확인
         if(bossClone) bossClone = null;
     } else {
-        // 평소 상태 로직
         if (!boss.transitioning && !boss.freeze) {
             boss.moveTimer++; 
             boss.x = 300 + Math.cos(boss.moveTimer/120)*150;
@@ -322,7 +323,6 @@ function update() {
                 }
             });
             
-            // ★ 3페이즈 랜덤 궁극기 발동 (확률)
             if (boss.phase === 3 && frame % 600 === 0 && Math.random() < 0.4) {
                 startBlackHole();
             }
@@ -346,7 +346,6 @@ function update() {
     scoreBox.innerText = `SCORE: ${score}`;
     hpBox.innerText = "♥".repeat(Math.max(0, player.hp));
 
-    // 총알 업데이트
     for (let i=0; i<bullets.length; i++) {
         let b = bullets[i];
         if(b.dead) continue;
@@ -400,13 +399,10 @@ function update() {
             }
 
             if(hit) {
-                // ★ 블랙홀 흡수탄 (Suction) 처리
                 if (b.isSuction) {
-                    player.slowTimer = 50; // 속도 감소만 줌
-                    b.dead = true; // 탄은 사라짐
+                    player.slowTimer = 50; 
+                    b.dead = true; 
                 } else {
-                    // 일반 데미지
-                    // 보스 본체 충돌 시 궁극기 중엔 데미지 없음
                     let bossCol = (boss.ultState !== 'none') && (Math.hypot(player.x-boss.x, player.y-boss.y) < boss.r);
                     if (!bossCol && player.invul <= 0 && !godMode) {
                         player.hp--;
@@ -445,15 +441,13 @@ function draw() {
         ctx.strokeStyle = '#fff'; ctx.stroke();
     }
 
-    // ★ 블랙홀 그리기 (궁극기 상태일 때)
     if (boss.ultState === 'gathering') {
         ctx.save();
         ctx.translate(boss.x, boss.y);
         ctx.globalAlpha = 0.2;
-        ctx.fillStyle = '#000'; // 검은 구체
+        ctx.fillStyle = '#000'; 
         ctx.beginPath(); ctx.arc(0,0, 100 + Math.random()*20, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#a0f'; // 보라색 테두리
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(0,0, 100 + Math.random()*20, 0, Math.PI*2); ctx.stroke();
         ctx.restore();
     }
