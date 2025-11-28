@@ -12,28 +12,38 @@ let frame = 0;
 let score = 0;
 let state = 'play'; 
 let godMode = false;
+// ★ 시간 조작 변수 (산데비스탄용)
+let timeScale = 1.0; 
 
 const player = { 
     x: 300, y: 700, r: 3, speed: 5, 
     hp: 5, maxHp: 5, 
     invul: 0, slowTimer: 0,
-    hitboxSize: 2 
+    hitboxSize: 2,
+    regenTimer: 0 // ★ 자동 회복 타이머
 };
 
 const boss = { 
     x: 300, y: 150, r: 30, 
     hp: 25000, maxHp: 25000, 
     phase: 1, angle: 0,
-    transitioning: false,
-    freeze: false,
-    moveTimer: 0,
-    ultState: 'none', 
-    ultTimer: 0
+    transitioning: false, freeze: false, moveTimer: 0,
+    ultState: 'none', ultTimer: 0
 };
 
 let bossClone = null;
 let bullets = [];
 const keys = {};
+
+// ★ 스킬 시스템 정의
+const skills = {
+    1: { name: '무적', cd: 900, duration: 180, active: false, timer: 0 }, // 15초 쿨, 3초 지속
+    2: { name: '산데', cd: 1200, duration: 300, active: false, timer: 0 }, // 20초 쿨, 5초 지속
+    3: { name: '반사', cd: 600, duration: 60, active: false, timer: 0 }, // 10초 쿨, 1초 지속
+    4: { name: '방패', cd: 900, duration: 300, active: false, timer: 0 }, // 15초 쿨, 5초 지속
+    5: { name: '점멸', cd: 180, duration: 0, active: false, timer: 0 }, // 3초 쿨, 즉발
+    6: { name: '폭주', cd: 1200, duration: 300, active: false, timer: 0 } // 20초 쿨, 5초 지속
+};
 
 // --- 총알 엔진 ---
 function shoot(p) {
@@ -73,8 +83,8 @@ const patterns = {
     5: () => { boss.freeze=false; shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:2.5, c:'#44f'}); }, 
     6: () => { boss.freeze=true;  let a=angleToP(boss); bossShoot({a:a, s:2, accel:0.05, c:'#f0f'}); }, 
 
-    // [Phase 2]
-    7: () => { boss.freeze=false; for(let i=0; i<8; i++) bossShoot({a:Math.PI*2/8*i+boss.angle, s:2.5, c:'#0f0', bounce:1}); boss.angle+=0.04; }, 
+    // [Phase 2] (너프됨: 탄속 1.5, 탄수 4)
+    7: () => { boss.freeze=false; for(let i=0; i<4; i++) bossShoot({a:Math.PI*2/4*i+boss.angle, s:1.5, c:'#0f0', bounce:1}); boss.angle+=0.04; }, 
     8: () => { boss.freeze=true;  bossShoot({a:angleToP(boss), s:5, c:'#f00', r:6, warnTime:50}); }, 
     9: () => { boss.freeze=false; for(let i=0; i<2; i++) bossShoot({a:boss.angle+Math.PI*i, s:2.5, c:'#ff0', curve:0.02}); boss.angle+=0.1; },
     10: () => { boss.freeze=false; shoot({x:Math.random()*600, y:Math.random()*300, a:Math.PI/2, s:0, accel:0.1, c:'#f80', r:4, warnTime:40}); },
@@ -98,14 +108,25 @@ const patterns = {
         shoot({x:player.x, y:0, a:Math.PI/2, s:0, c:'#a0f', w:1600, h:40, isLaser:true, warnTime:80, activeTime:40});
     }, 
     15: () => { boss.freeze=true;  let r=200; for(let i=0; i<6; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:1.5, accel:0.05, c:'#f0f', homing:0.01, warnTime:50}); }, 
+    
+    // ★ 16번: 십자 회전 광선 2연격 (방향 반대)
     16: () => { 
         boss.freeze=true;
+        let startAngle = boss.angle;
+        // 1타: 시계 방향
         for(let i=0; i<4; i++) {
-            bossShoot({a:boss.angle + (Math.PI/2)*i, s:0, c:'#f0f', w:1600, h:15, isLaser:true, warnTime:50, activeTime:60, curve:0.005}); 
+            bossShoot({a:startAngle + (Math.PI/2)*i, s:0, c:'#f0f', w:1600, h:15, isLaser:true, warnTime:50, activeTime:50, curve:0.01}); 
         }
+        // 2타: 반시계 방향 (1.5초 뒤)
+        setTimeout(() => {
+            if(state !== 'play') return;
+            for(let i=0; i<4; i++) {
+                bossShoot({a:startAngle + (Math.PI/2)*i, s:0, c:'#a0a', w:1600, h:15, isLaser:true, warnTime:50, activeTime:50, curve:-0.01}); 
+            }
+        }, 1500); // 실제 시간 기준
     }, 
-    17: () => { boss.freeze=false; shoot({x:Math.random()*500+50, y:0, a:Math.PI/2, s:0, c:'#f0f', w:1600, h:50, isLaser:true, warnTime:70, activeTime:40}); },
     
+    17: () => { boss.freeze=false; shoot({x:Math.random()*500+50, y:0, a:Math.PI/2, s:0, c:'#f0f', w:1600, h:50, isLaser:true, warnTime:70, activeTime:40}); },
     18: () => { 
         if(!bossClone && boss.hp > 0 && boss.ultState === 'none') { 
             boss.freeze = true;
@@ -127,23 +148,66 @@ function pickPatterns() {
 
     if (p === 1 && Math.random() < 0.15) count = 2; 
     if (p === 2 && Math.random() < 0.8) count = 2; 
-    if (p === 3) count = Math.random() < 0.6 ? 3 : 2; 
+    if (p === 3) count = Math.random() < 0.8 ? 2 : 3; // ★ 3페: 2개 이상 쓸 확률 높임
 
     let pool = [];
     if (p === 1) pool = [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6]; 
     if (p === 2) pool = [7, 7, 8, 9, 9, 10, 11]; 
-    // ★ 3페이즈: 1,2페이즈 패턴도 모두 포함 (요청사항 반영)
-    if (p === 3) {
-        pool = [
-            1,2,3,4,5,6,        // Phase 1
-            7,8,9,10,11,        // Phase 2
-            12,12,13,13,14,14,15,16,17,18 // Phase 3 (가중치)
-        ]; 
-    }
+    if (p === 3) pool = [12, 12, 13, 13, 14, 14, 15, 16, 17, 18]; 
 
     for(let i=0; i<count; i++) {
         let idx = Math.floor(Math.random() * pool.length);
         activePatterns.push(pool[idx]);
+    }
+}
+
+// 스킬 사용 함수
+function useSkill(id) {
+    if (state !== 'play' || skills[id].timer > 0) return;
+    
+    skills[id].active = true;
+    skills[id].timer = skills[id].cd;
+    skills[id].activeTimer = skills[id].duration;
+
+    // 즉발 스킬 처리
+    if (id === 5) { // 점멸
+        let spd = 200;
+        if(keys['ArrowLeft']) player.x = Math.max(10, player.x - spd);
+        if(keys['ArrowRight']) player.x = Math.min(590, player.x + spd);
+        if(keys['ArrowUp']) player.y = Math.max(10, player.y - spd);
+        if(keys['ArrowDown']) player.y = Math.min(790, player.y + spd);
+        player.invul = 30; // 짧은 무적
+    }
+}
+
+// 스킬 업데이트 (쿨타임, 효과)
+function updateSkills() {
+    for(let i=1; i<=6; i++) {
+        let s = skills[i];
+        if (s.timer > 0) s.timer--;
+        if (s.activeTimer > 0) {
+            s.activeTimer--;
+            if (s.activeTimer <= 0) s.active = false;
+        }
+        
+        // UI 업데이트
+        let skillEl = document.getElementById(`skill-${i}`);
+        if(skillEl) {
+            if(s.active) skillEl.classList.add('active');
+            else skillEl.classList.remove('active');
+            
+            let cdPer = s.timer > 0 ? (s.timer / s.cd * 100) : 0;
+            skillEl.querySelector('.cooldown').style.height = `${cdPer}%`;
+        }
+    }
+
+    // [2] 산데비스탄: 시간 왜곡
+    if (skills[2].active) {
+        timeScale = 0.1; // 적이 10배 느려짐
+        gameScreen.classList.add('invert-effect');
+    } else {
+        if(boss.ultState === 'none') gameScreen.classList.remove('invert-effect'); // 궁극기 아닐때만 끔
+        timeScale = 1.0;
     }
 }
 
@@ -164,22 +228,14 @@ function startPhase2() {
 function startPhase3() {
     boss.transitioning = true;
     msgBox.style.display = 'block'; msgBox.innerText = "PHASE 3: APOCALYPSE"; msgBox.style.color = '#a0f';
-    
-    // ★ 3페이즈 진입 효과: 반전(Invert)은 0.1초만!
-    gameScreen.classList.add('shake-effect'); 
-    gameScreen.classList.add('phase3-effect'); // 붉은 효과는 계속
-    
-    gameScreen.classList.add('invert-effect'); // 반전 켜기
-    setTimeout(() => {
-        gameScreen.classList.remove('invert-effect'); // 0.1초 뒤 끄기
-    }, 100);
-
+    gameScreen.classList.add('shake-effect'); gameScreen.classList.add('phase3-effect');
+    gameScreen.classList.add('invert-effect');
+    setTimeout(() => { gameScreen.classList.remove('invert-effect'); }, 100);
     setTimeout(() => {
         gameScreen.classList.remove('shake-effect'); 
         msgBox.style.display = 'none'; boss.transitioning = false;
     }, 2000);
 
-    // 교차 폭격
     for(let i=0; i<6; i++) {
         setTimeout(() => { shoot({x: 50 + i * 100, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:50, activeTime:30, c:'#f00'}); }, i * 100);
     }
@@ -190,102 +246,90 @@ function startPhase3() {
     }, 1000);
 }
 
-// 궁극기: 블랙홀 시작 함수
 function startBlackHole() {
     if (boss.ultState !== 'none') return;
-    
-    boss.ultState = 'gathering'; 
-    boss.ultTimer = 0;
-    boss.freeze = true; 
-    bossClone = null; 
-    
-    msgBox.style.display = 'block'; 
-    msgBox.innerText = "ULTIMATE: BLACK HOLE"; 
-    msgBox.style.color = '#000';
-    msgBox.style.textShadow = '0 0 10px #fff';
-    gameScreen.classList.add('invert-effect'); 
-    
+    boss.ultState = 'gathering'; boss.ultTimer = 0; boss.freeze = true; bossClone = null; 
+    msgBox.style.display = 'block'; msgBox.innerText = "ULTIMATE: BLACK HOLE"; msgBox.style.color = '#000';
+    msgBox.style.textShadow = '0 0 10px #fff'; gameScreen.classList.add('invert-effect'); 
     bullets = [];
 }
 
 function updateBlackHole() {
-    boss.ultTimer++;
+    // 산데비스탄 쓰면 블랙홀 타이머도 느리게 감
+    boss.ultTimer += timeScale;
     
-    boss.x += (300 - boss.x) * 0.1;
-    boss.y += (400 - boss.y) * 0.1;
+    boss.x += (300 - boss.x) * 0.1 * timeScale;
+    boss.y += (400 - boss.y) * 0.1 * timeScale;
 
-    let dx = boss.x - player.x;
-    let dy = boss.y - player.y;
+    let dx = boss.x - player.x; let dy = boss.y - player.y;
     let dist = Math.hypot(dx, dy);
-    
-    // 흡입력 (강화됨)
-    let pullStrength = 5000 / (dist * dist + 100); // 3000 -> 5000
-    if (pullStrength > 5.5) pullStrength = 5.5; // 최대 힘 증가
+    let pullStrength = 5000 / (dist * dist + 100);
+    if (pullStrength > 5.5) pullStrength = 5.5;
 
-    player.x += dx * pullStrength * 0.05;
-    player.y += dy * pullStrength * 0.05;
+    // 플레이어는 산데비스탄의 영향(느려짐)을 받으면 안되지만, 물리적으로는 적용됨
+    // 블랙홀 끌어당김도 timeScale 적용
+    player.x += dx * pullStrength * 0.05 * timeScale;
+    player.y += dy * pullStrength * 0.05 * timeScale;
 
     if (frame % 4 === 0) {
-        let angle = Math.random() * Math.PI * 2;
-        let r = 500; 
+        let angle = Math.random() * Math.PI * 2; let r = 500; 
         shoot({
-            x: 300 + Math.cos(angle) * r,
-            y: 400 + Math.sin(angle) * r,
-            a: angle + Math.PI, 
-            s: 4 + Math.random() * 3, 
-            c: '#90f', 
-            // ★ 파편 크기 2배 증가 (3 -> 6)
-            r: 6, 
-            isSuction: true 
+            x: 300 + Math.cos(angle) * r, y: 400 + Math.sin(angle) * r,
+            a: angle + Math.PI, s: 4 + Math.random() * 3, c: '#90f', r: 6, isSuction: true 
         });
     }
 
-    // ★ 지속시간 8초 (480프레임)로 증가
-    if (boss.ultTimer > 480) { 
-        triggerExplosion(dist);
-    }
+    if (boss.ultTimer > 480) triggerExplosion(dist);
 }
 
 function triggerExplosion(playerDist) {
-    boss.ultState = 'none';
-    boss.freeze = false;
-    boss.ultTimer = 0;
-    msgBox.style.display = 'none';
-    gameScreen.classList.remove('invert-effect');
+    boss.ultState = 'none'; boss.freeze = false; boss.ultTimer = 0;
+    msgBox.style.display = 'none'; gameScreen.classList.remove('invert-effect');
     gameScreen.classList.add('shake-effect');
     setTimeout(() => gameScreen.classList.remove('shake-effect'), 500);
 
-    if (playerDist < 250 && !godMode && player.invul <= 0) {
+    if (playerDist < 250 && !godMode && player.invul <= 0 && !skills[1].active) {
         let damage = Math.floor((250 - playerDist) / 40); 
         if (damage < 1) damage = 1;
-        
-        player.hp -= damage;
-        player.invul = 60;
-        
+        player.hp -= damage; player.invul = 60;
         gameScreen.style.backgroundColor = 'white'; 
         setTimeout(()=>gameScreen.style.backgroundColor='', 200);
-
         if (player.hp <= 0) state = 'over';
     }
-
     bullets = [];
 }
 
-
 function update() {
     if (state !== 'play') return;
-    frame++;
+    frame++; // 프레임은 절대 시간
+    updateSkills();
     
+    // 플레이어 (스킬 영향 받음)
     if (player.invul > 0) player.invul--;
     if (player.slowTimer > 0) player.slowTimer--;
-    let baseSpd = (keys['ShiftLeft']||keys['ShiftRight'] ? 2 : 5) * (player.slowTimer > 0 ? 0.5 : 1);
+    
+    // 자동 회복
+    player.regenTimer++;
+    if (player.regenTimer > 600) { // 10초
+        player.regenTimer = 0;
+        if (player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + 0.5);
+    }
+
+    // 이동 속도 계산
+    let skillSpeedMod = 1.0;
+    if (skills[1].active) skillSpeedMod = 0.2; // 무적 시 느려짐
+    
+    let baseSpd = (keys['ShiftLeft']||keys['ShiftRight'] ? 2 : 5) * (player.slowTimer > 0 ? 0.5 : 1) * skillSpeedMod;
 
     if(keys['ArrowLeft'] && player.x>5) player.x-=baseSpd;
     if(keys['ArrowRight'] && player.x<595) player.x+=baseSpd;
     if(keys['ArrowUp'] && player.y>5) player.y-=baseSpd;
     if(keys['ArrowDown'] && player.y<795) player.y+=baseSpd;
     
-    if(frame % 5 === 0) {
+    // 플레이어 사격 (폭주 스킬 시 10배 속도)
+    let fireRate = skills[6].active ? 10 : 1; 
+    // 기본 5프레임마다 발사 -> 폭주 시 매 프레임 발사 가능
+    if (frame % Math.max(1, Math.floor(5/fireRate)) === 0) {
         shoot({x:player.x-10, y:player.y, a:-Math.PI/2, s:15, r:3, c:'#afa', isEnemy:false});
         shoot({x:player.x+10, y:player.y, a:-Math.PI/2, s:15, r:3, c:'#afa', isEnemy:false});
     }
@@ -294,20 +338,21 @@ function update() {
         updateBlackHole();
         if(bossClone) bossClone = null;
     } else {
+        // ★ timeScale 적용 (보스, 분신 이동)
         if (!boss.transitioning && !boss.freeze) {
-            boss.moveTimer++; 
+            boss.moveTimer += timeScale; 
             boss.x = 300 + Math.cos(boss.moveTimer/120)*150;
             boss.y = 150 + Math.sin(boss.moveTimer/80)*50;
         }
 
         if (bossClone) {
-            bossClone.moveTimer++;
+            bossClone.moveTimer += timeScale;
             bossClone.x = 300 - Math.cos(bossClone.moveTimer/120)*150; 
             bossClone.y = 150 + Math.sin(bossClone.moveTimer/80)*50;
         }
 
         if (!boss.transitioning) {
-            patternTimer++;
+            patternTimer += timeScale; // 패턴 타이머도 느리게
             if (patternTimer > 200) { 
                 patternTimer = 0;
                 pickPatterns();
@@ -316,8 +361,10 @@ function update() {
                 if (patterns[pat]) {
                     let freq = 10;
                     if ([8, 10, 12, 14, 15, 16, 17, 18].includes(pat)) {
-                        if (patternTimer === 1) patterns[pat]();
+                        if (Math.floor(patternTimer) === 1) patterns[pat]();
                     } else {
+                        // 빈도 체크도 timeScale 고려하면 복잡하니, frame 기준으로 하되 패턴함수 내부에서 timeScale 쓰게 유도
+                        // 여기선 간단히 실행 빈도 자체는 유지하되 탄막 움직임이 느려짐
                         if (frame % freq === 0) patterns[pat]();
                     }
                 }
@@ -344,13 +391,22 @@ function update() {
     uiHp.style.width = (hpR*100)+'%';
     uiHp.style.background = boss.phase===1?'#0cf' : boss.phase===2?'#f33' : '#a0f';
     scoreBox.innerText = `SCORE: ${score}`;
-    hpBox.innerText = "♥".repeat(Math.max(0, player.hp));
+    
+    // 체력 소수점 처리 (반 하트)
+    let fullHearts = "♥".repeat(Math.floor(player.hp));
+    let halfHeart = (player.hp % 1 !== 0) ? "♡" : "";
+    hpBox.innerText = fullHearts + halfHeart;
 
+    // --- 총알 업데이트 ---
     for (let i=0; i<bullets.length; i++) {
         let b = bullets[i];
         if(b.dead) continue;
 
-        b.timer++;
+        // ★ 시간 왜곡 적용 (timeScale)
+        // 아군 총알은 느려지지 않음! (플레이어 이득)
+        let localTimeScale = b.isEnemy ? timeScale : 1.0;
+
+        b.timer += localTimeScale;
         if (b.lifeTime && b.timer > b.lifeTime) { b.dead = true; continue; }
         if (b.isLaser && b.timer > b.warnTime + b.activeTime) { b.dead = true; continue; }
 
@@ -362,25 +418,46 @@ function update() {
             continue; 
         }
 
-        if(b.accel) b.speed += b.accel;
-        if(b.delay > 0) { b.delay--; continue; }
+        if(b.accel) b.speed += b.accel * localTimeScale;
+        if(b.delay > 0) { b.delay -= localTimeScale; continue; }
+        
         if(b.homing && b.isEnemy) {
             let targetA = Math.atan2(player.y - b.y, player.x - b.x);
             let diff = targetA - b.angle;
             while(diff < -Math.PI) diff += Math.PI*2;
             while(diff > Math.PI) diff -= Math.PI*2;
-            b.angle += diff * b.homing;
+            b.angle += diff * b.homing * localTimeScale;
         }
-        if(b.curve) b.angle += b.curve;
+        if(b.curve) b.angle += b.curve * localTimeScale;
 
-        b.vx = Math.cos(b.angle) * b.speed;
-        b.vy = Math.sin(b.angle) * b.speed;
+        b.vx = Math.cos(b.angle) * b.speed * localTimeScale;
+        b.vy = Math.sin(b.angle) * b.speed * localTimeScale;
         b.x += b.vx; b.y += b.vy;
 
         if(b.bounce > 0 && (b.x<0 || b.x>600)) { b.vx*=-1; b.angle=Math.PI-b.angle; b.bounce--; b.x+=b.vx; }
         if(b.x<-100 || b.x>700 || b.y<-100 || b.y>900) b.dead = true;
 
         if (b.isEnemy) {
+            // [3] 반사 스킬: 범위 내 적 탄알을 아군으로
+            if (skills[3].active && !b.isLaser && !b.isSuction) {
+                let dist = Math.hypot(player.x - b.x, player.y - b.y);
+                if (dist < 100) { // 반사 범위 100
+                    b.isEnemy = false;
+                    b.color = 'cyan';
+                    b.angle = angleToP(b) + Math.PI; // 보스 쪽으로 반사
+                    continue;
+                }
+            }
+
+            // [4] 방패 스킬: 전방 탄알 삭제 (레이저 제외)
+            if (skills[4].active && !b.isLaser && !b.isSuction) {
+                let dist = Math.hypot(player.x - b.x, player.y - b.y);
+                if (dist < 60 && b.y < player.y) { // 플레이어 위쪽(전방)만 막음
+                    b.dead = true;
+                    continue;
+                }
+            }
+
             let hit = false;
             let dist = 0;
             if (b.isLaser) {
@@ -400,11 +477,13 @@ function update() {
 
             if(hit) {
                 if (b.isSuction) {
-                    player.slowTimer = 50; 
-                    b.dead = true; 
+                    player.slowTimer = 50; b.dead = true; 
                 } else {
+                    // 무적 스킬[1] 사용 중이면 데미지 X
+                    let isInvulSkill = skills[1].active;
                     let bossCol = (boss.ultState !== 'none') && (Math.hypot(player.x-boss.x, player.y-boss.y) < boss.r);
-                    if (!bossCol && player.invul <= 0 && !godMode) {
+                    
+                    if (!bossCol && player.invul <= 0 && !godMode && !isInvulSkill) {
                         player.hp--;
                         player.invul = 60; player.slowTimer = 60;
                         gameScreen.style.backgroundColor = '#300';
@@ -417,6 +496,7 @@ function update() {
             }
 
         } else {
+            // 아군 탄알 처리
             let hitAny = false;
             if(Math.abs(b.x-boss.x)<30 && Math.abs(b.y-boss.y)<30) {
                 boss.hp -= 30; score += 50; hitAny = true;
@@ -442,13 +522,9 @@ function draw() {
     }
 
     if (boss.ultState === 'gathering') {
-        ctx.save();
-        ctx.translate(boss.x, boss.y);
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = '#000'; 
-        ctx.beginPath(); ctx.arc(0,0, 100 + Math.random()*20, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0,0, 100 + Math.random()*20, 0, Math.PI*2); ctx.stroke();
+        ctx.save(); ctx.translate(boss.x, boss.y); ctx.globalAlpha = 0.2;
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0,0, 100 + Math.random()*20, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0,0, 100 + Math.random()*20, 0, Math.PI*2); ctx.stroke();
         ctx.restore();
     }
 
@@ -485,6 +561,17 @@ function draw() {
         ctx.fillStyle = player.slowTimer > 0 ? '#555' : 'red'; 
         ctx.fillRect(player.x-15, player.y-15, 30, 30);
         ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,player.hitboxSize,0,Math.PI*2); ctx.fill();
+        
+        // ★ 스킬 이펙트 (방패)
+        if (skills[4].active) {
+            ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(player.x, player.y, 60, Math.PI, 2*Math.PI); ctx.stroke();
+        }
+        // ★ 스킬 이펙트 (반사 범위)
+        if (skills[3].active) {
+            ctx.strokeStyle = 'lime'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(player.x, player.y, 100, 0, 2*Math.PI); ctx.stroke();
+        }
     }
 
     ctx.fillStyle = uiHp.style.background; 
@@ -502,9 +589,12 @@ function loop() { update(); draw(); requestAnimationFrame(loop); }
 function angleToP(origin) { return Math.atan2(player.y-origin.y, player.x-origin.x); }
 function resetGame() {
     boss.hp = boss.maxHp; boss.phase = 1; score = 0; 
-    player.hp = player.maxHp; player.invul = 0; player.slowTimer = 0;
+    player.hp = player.maxHp; player.invul = 0; player.slowTimer = 0; player.regenTimer = 0;
     bullets.length=0; bossClone=null; state='play'; patternTimer = 0; boss.transitioning = false; boss.freeze=false; boss.moveTimer=0;
-    boss.ultState='none';
+    boss.ultState='none'; timeScale = 1.0;
+    // 스킬 리셋
+    for(let i=1; i<=6; i++) { skills[i].timer = 0; skills[i].active = false; }
+    
     msgBox.style.display = 'none';
     gameScreen.classList.remove('shake-effect', 'invert-effect', 'phase3-effect', 'invert-once');
 }
@@ -513,6 +603,14 @@ window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (e.code === 'KeyR' && state !== 'play') resetGame();
     if (e.code === 'KeyT') { godMode = !godMode; adminMsg.style.display = godMode ? 'block' : 'none'; }
+    
+    // 스킬 키 바인딩
+    if (e.code === 'Digit1') useSkill(1);
+    if (e.code === 'Digit2') useSkill(2);
+    if (e.code === 'Digit3') useSkill(3);
+    if (e.code === 'Digit4') useSkill(4);
+    if (e.code === 'Digit5') useSkill(5);
+    if (e.code === 'Digit6') useSkill(6);
 });
 window.addEventListener('keyup', e=>keys[e.code]=false);
 loop();
