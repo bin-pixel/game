@@ -2,38 +2,40 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS RUSH: v14.0</title>
-    <link rel="stylesheet" href="style.css?v=14">
+    <title>BOSS RUSH: RECALL</title>
+    <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
-    <div id="game-screen">
-        <div class="boss-hp-container"><div id="boss-hp-bar"></div></div>
-        <canvas id="c" width="600" height="800"></canvas>
-        
-        <div id="ui-layer">
-            <div id="score-box">SCORE: 0</div>
-            <div id="hp-box">♥♥♥♥♥</div>
-            <div id="msg-box"></div>
-            <div id="admin-msg">GOD MODE ON</div>
+    <div id="game-wrapper">
+        <div id="game-screen">
+            <div class="boss-hp-container"><div id="boss-hp-bar"></div></div>
+            <canvas id="c" width="600" height="800"></canvas>
+            
+            <div id="ui-layer">
+                <div id="score-box">SCORE: 0</div>
+                <div id="hp-box">♥♥♥♥♥</div>
+                <div id="msg-box"></div>
+                <div id="admin-msg">GOD MODE ON</div>
+            </div>
         </div>
 
-        <div id="skill-bar">
-            <div class="skill-row">
+        <div id="side-panel">
+            <div class="skill-title">SKILLS</div>
+            <div id="skill-list">
                 <div class="skill" id="skill-1"><div class="key">1</div><div class="name">무적</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-2"><div class="key">2</div><div class="name">산데</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-3"><div class="key">3</div><div class="name">반사</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-4"><div class="key">4</div><div class="name">방패</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-5"><div class="key">5</div><div class="name">레일건</div><div class="cooldown"></div></div>
-            </div>
-            <div class="skill-row">
                 <div class="skill" id="skill-6"><div class="key">6</div><div class="name">오토</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-7"><div class="key">7</div><div class="name">동결</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-8"><div class="key">8</div><div class="name">흡혈</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-9"><div class="key">9</div><div class="name">유폭</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-10"><div class="key">0</div><div class="name">중력장</div><div class="cooldown"></div></div>
+                <div class="skill special" id="skill-11"><div class="key">-</div><div class="name">리콜</div><div class="cooldown"></div></div>
             </div>
         </div>
     </div>
-    <script src="game.js?v=14"></script>
+    <script src="game.js?v=16"></script>
 </body>
 </html>
