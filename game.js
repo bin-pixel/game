@@ -61,7 +61,6 @@ const skills = {
     11: { name: '리콜', cd: 3600, duration: 0, active: false, timer: 0 }
 };
 
-// ★ 누락되었던 함수 추가 (이게 없어서 화면이 검게 나왔음)
 function getPhaseColor() {
     if (boss.phase === 1) return '#00ccff';
     if (boss.phase === 2) return '#ff3333';
@@ -245,10 +244,11 @@ function useSkill(id) {
         gameScreen.classList.add('shake-effect');
         setTimeout(() => gameScreen.classList.remove('shake-effect'), 200);
     }
+    // [9] 유폭 (상향: 범위 350)
     if (id === 9) { 
         let targets = bullets.filter(b => b.isEnemy && !b.isLaser && !b.isSuction);
         targets.sort((a,b) => Math.hypot(player.x-a.x, player.y-a.y) - Math.hypot(player.x-b.x, player.y-b.y));
-        if (targets.length > 0) createExplosion(targets[0].x, targets[0].y, 150);
+        if (targets.length > 0) createExplosion(targets[0].x, targets[0].y, 350);
         else skills[id].timer = 30; 
     }
     if (id === 10) gravityObj = { x: player.x, y: player.y, r: 200, absorbed: 0 }; 
@@ -277,7 +277,8 @@ function updateSkills() {
                 s.active = false;
                 if (i===4) shieldObj = null;
                 if (i===10 && gravityObj) { 
-                    let dmg = Math.min(gravityObj.absorbed * 20, 800); 
+                    // ★ 중력장 너프: 데미지 배율 10, 상한선 400
+                    let dmg = Math.min(gravityObj.absorbed * 10, 400); 
                     let angleToBoss = Math.atan2(boss.y - gravityObj.y, boss.x - gravityObj.x);
                     shoot({
                         x: gravityObj.x, y: gravityObj.y, 
@@ -404,9 +405,10 @@ function updateBlackHole() {
 
 function triggerExplosion(playerDist) {
     boss.ultState = 'none'; boss.freeze = false; boss.ultTimer = 0;
-    msgBox.style.display = 'none'; 
+    msgBox.style.display = 'none'; gameScreen.classList.remove('invert-effect');
     gameScreen.classList.add('shake-effect');
     setTimeout(() => gameScreen.classList.remove('shake-effect'), 500);
+
     for(let i=0; i<5; i++) spawnParticles(boss.x, boss.y, '#a0f', 50, 15);
 
     if (playerDist < 250 && !godMode && player.invul <= 0 && !skills[1].active) {
@@ -608,10 +610,17 @@ function update() {
         if(b.x<-100 || b.x>700 || b.y<-100 || b.y>900) b.dead = true;
 
         if (b.isEnemy) {
+            // ★ 반사 (Reflect) 리워크 로직
             if (skills[3].active && !b.isLaser && !b.isSuction) {
                 let dist = Math.hypot(player.x - b.x, player.y - b.y);
-                if (dist < 400) { 
-                    b.isEnemy = false; b.color = 'cyan'; b.angle = angleToP(b) + Math.PI; 
+                // 최소 거리 60, 최대 400
+                if (dist < 400 && dist > 60) { 
+                    b.isEnemy = false; 
+                    b.color = 'cyan'; 
+                    b.speed = b.speed * 1.5; // 속도 증가
+                    // ★ 즉시 보스 방향으로 꺾음
+                    b.angle = Math.atan2(boss.y - b.y, boss.x - b.x);
+                    b.homing = 0.2; // 강력한 유도
                     continue;
                 }
             }
@@ -680,7 +689,10 @@ function update() {
                     score += 50; hitAny = true;
                     spawnText(boss.x, boss.y - 30, dmg, '#fff', 15);
                     spawnParticles(b.x, b.y, 'cyan', 2, 2);
-                    if (skills[8].active) player.hp = Math.min(player.maxHp, player.hp + 0.05);
+                    if (skills[8].active) { // ★ 흡혈 이펙트
+                        player.hp = Math.min(player.maxHp, player.hp + 0.05);
+                        spawnParticles(player.x, player.y, '#0f0', 2, 2);
+                    }
                 } else {
                     spawnText(boss.x, boss.y - 30, "IMMUNE", '#ccc', 12);
                     hitAny = true;
@@ -728,10 +740,14 @@ function draw() {
     if (!skills[2].active) afterimages = afterimages.filter(i => i.alpha > 0);
 
     if (bossClone) {
+        ctx.save();
         ctx.globalAlpha = 0.5; 
-        ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(bossClone.x, bossClone.y, bossClone.r, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.stroke();
-        ctx.globalAlpha = 1.0;
+        ctx.translate(bossClone.x, bossClone.y);
+        let color = getPhaseColor();
+        ctx.shadowBlur = 20; ctx.shadowColor = color;
+        ctx.fillStyle = color; 
+        ctx.beginPath(); ctx.arc(0, 0, boss.r, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
     }
 
     if (boss.ultState === 'gathering') {
@@ -768,7 +784,6 @@ function draw() {
         ctx.restore();
     }
 
-    // 레이어: 배경 -> 잔상 -> 설치물 -> 탄환 -> 분신 -> 보스
     bullets.forEach(b => {
         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
         if (b.warnTime > 0 && b.timer < b.warnTime) {
@@ -797,14 +812,6 @@ function draw() {
         }
         ctx.restore();
     });
-
-    if(boss.ultState === 'none' || boss.ultState === 'warning') {
-        let color = getPhaseColor();
-        ctx.shadowBlur = 20; ctx.shadowColor = color;
-        ctx.fillStyle = color; 
-        ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0;
-    }
     
     explosions.forEach(e => {
         ctx.save(); ctx.translate(e.x, e.y);
@@ -826,6 +833,14 @@ function draw() {
         if (skills[3].active) { ctx.strokeStyle = 'lime'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(player.x, player.y, 400, 0, 2*Math.PI); ctx.stroke(); }
         if (skills[1].active) { ctx.strokeStyle = 'gold'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(player.x, player.y, 40, 0, 2*Math.PI); ctx.stroke(); }
         if (isRewinding) { ctx.fillStyle = '#0f0'; ctx.fillRect(player.x-15, player.y-15, 30, 30); }
+    }
+
+    if(boss.ultState === 'none' || boss.ultState === 'warning') {
+        let color = getPhaseColor();
+        ctx.shadowBlur = 20; ctx.shadowColor = color;
+        ctx.fillStyle = color; 
+        ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
     }
     
     texts.forEach(t => {
