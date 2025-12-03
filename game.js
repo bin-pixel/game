@@ -62,7 +62,7 @@ const skills = {
     5: { name: '레일건', cd: 300, duration: 0, active: false, timer: 0 }, 
     6: { name: '오토', cd: 1200, duration: 300, active: false, timer: 0 },
     7: { name: '동결', cd: 1800, duration: 240, active: false, timer: 0 }, 
-    8: { name: '흡혈', cd: 1200, duration: 300, active: false, timer: 0 }, 
+    8: { name: '흡혈', cd: 1200, duration: 480, active: false, timer: 0 }, 
     9: { name: '유폭', cd: 300, duration: 0, active: false, timer: 0 },    
     10: { name: '중력장', cd: 1200, duration: 300, active: false, timer: 0 }, 
     11: { name: '리콜', cd: 3600, duration: 0, active: false, timer: 0 }
@@ -70,17 +70,17 @@ const skills = {
 
 const patternNames = {
     1: "Spiral", 2: "Ring", 3: "Aimed", 4: "Windmill", 5: "Rain", 6: "Accel",
-    7: "Bouncing", 8: "Snipe", 9: "DNA", 10: "Bombard", 11: "Fan Bounce",
-    12: "Multi-Laser", 13: "Homing", 14: "Cross Laser", 15: "Trap", 
-    16: "Spin Laser", 17: "Thunder", 18: "Clone",
+    7: "Giant Bounce", 8: "Snipe", 9: "DNA", 10: "Giant Bomb", 11: "Giant Fan",
+    12: "Aimed Laser", 13: "Homing", 14: "Cross Laser", 15: "Trap", 
+    16: "Spin Laser", 17: "Aimed Thunder", 18: "Clone",
     19: "Time Stop", 20: "White Laser"
 };
 
 function getPhaseColor() {
-    if (boss.phase === 1) return '#00ccff';
-    if (boss.phase === 2) return '#ff3333';
-    if (boss.phase === 3) return '#aa00ff';
-    return '#ffffff';
+    if (boss.phase === 1) return '#00ccff'; // Cyan
+    if (boss.phase === 2) return '#ff3333'; // Red
+    if (boss.phase === 3) return '#aa00ff'; // Purple
+    return '#ffffff'; // White
 }
 
 function getBulletColor() {
@@ -90,26 +90,21 @@ function getBulletColor() {
     return '#ff0000'; 
 }
 
-// ★ [버그 수정] 페이즈 강제 설정 함수
 window.setPhase = function(p) {
     boss.phase = p;
-    
-    // ★ 체력을 해당 페이즈에 맞게 조정 (그래야 자동 전환 로직이 덮어쓰지 않음)
-    if (p === 1) boss.hp = boss.maxHp; // 100%
-    if (p === 2) boss.hp = boss.maxHp * 0.75; // 75%
-    if (p === 3) boss.hp = boss.maxHp * 0.50; // 50%
-    if (p === 4) boss.hp = boss.maxHp * 0.25; // 25%
+    if (p === 1) boss.hp = boss.maxHp; 
+    if (p === 2) boss.hp = boss.maxHp * 0.75; 
+    if (p === 3) boss.hp = boss.maxHp * 0.50; 
+    if (p === 4) boss.hp = boss.maxHp * 0.25; 
 
-    // 상태 강제 초기화
     clearAllPatterns();
     bullets = [];
     boss.ultState = 'none';
     boss.ultTimer = 0;
-    boss.transitioning = false; // ★ 전환 중 상태 해제
-    boss.freeze = false; // ★ 멈춤 해제
+    boss.transitioning = false; 
+    boss.freeze = false; 
     gameScreen.className = ''; 
     
-    // 페이즈별 초기 연출 트리거
     if(p===2) startPhase2();
     else if(p===3) startPhase3();
     else if(p===4) startPhase4();
@@ -147,7 +142,9 @@ function spawnText(x, y, text, color, size) {
 function shoot(p) {
     let width = p.w || 0;
     if (p.isLaser) width = 1600; 
-    let color = p.c || getBulletColor();
+    // ★ 레이저도 페이즈 색상 강제 적용
+    let color = (p.isLaser) ? getPhaseColor() : (p.c || getBulletColor());
+
     bullets.push({
         x: p.x, y: p.y, speed: p.s, angle: p.a,
         r: p.r || 4, color: color,
@@ -171,33 +168,65 @@ function bossShoot(p) {
 
 // Patterns
 const patterns = {
+    // [Phase 1] Basic
     1: () => { boss.freeze=false; for(let i=0; i<6; i++) bossShoot({a:boss.angle+i*1.0, s:2.0}); boss.angle+=0.1; },
     2: () => { boss.freeze=false; for(let i=0; i<16; i++) bossShoot({a:Math.PI*2/16*i, s:1.5}); },
     3: () => { boss.freeze=true;  let aim=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:aim+i*0.2, s:3.0}); }, 
     4: () => { boss.freeze=false; bossShoot({a:boss.angle, s:2.0, curve:0.01}); bossShoot({a:boss.angle+Math.PI, s:2.0, curve:0.01}); boss.angle+=0.15; },
     5: () => { boss.freeze=false; shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:2.0}); }, 
     6: () => { boss.freeze=true;  let a=angleToP(boss); bossShoot({a:a, s:1.5, accel:0.03}); }, 
-    7: () => { boss.freeze=false; for(let i=0; i<6; i++) bossShoot({a:Math.PI*2/6*i+boss.angle, s:1.5, r:15, bounce:1}); boss.angle+=0.04; }, 
-    8: () => { boss.freeze=true;  bossShoot({a:angleToP(boss), s:4, r:25, warnTime:60}); }, 
-    9: () => { boss.freeze=false; for(let i=0; i<3; i++) bossShoot({a:boss.angle+Math.PI*i*0.6, s:2.0, r:12, curve:0.01}); boss.angle+=0.1; },
-    10: () => { boss.freeze=false; shoot({x:Math.random()*600, y:Math.random()*300, a:Math.PI/2, s:0, accel:0.05, r:20, warnTime:50}); },
-    11: () => { boss.freeze=true;  let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.4, s:3.0, r:15, bounce:1}); }, 
-    12: () => { 
-        boss.freeze=false; for(let i=0; i<3; i++) setTimeout(() => shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:0, w:1600, h:15, isLaser:true, warnTime:40, activeTime:20}), i*100);
+    
+    // [Phase 2] Giant Bullets (느리고 묵직하게 수정됨)
+    7: () => { // 느린 도탄
+        boss.freeze=false; 
+        for(let i=0; i<4; i++) bossShoot({a:Math.PI*2/4*i+boss.angle, s:1.0, r:20, bounce:1}); 
+        boss.angle+=0.04; 
+    }, 
+    8: () => { boss.freeze=true;  bossShoot({a:angleToP(boss), s:4, r:30, warnTime:60}); }, 
+    9: () => { // 느린 DNA
+        boss.freeze=false; 
+        for(let i=0; i<2; i++) bossShoot({a:boss.angle+Math.PI*i*0.6, s:1.5, r:15, curve:0.01}); 
+        boss.angle+=0.1; 
+    },
+    10: () => { // 거대 폭격 (빈도 낮음)
+        boss.freeze=false; 
+        shoot({x:Math.random()*600, y:Math.random()*300, a:Math.PI/2, s:0, accel:0.05, r:25, warnTime:60}); 
+    },
+    11: () => { // 느린 부채꼴
+        boss.freeze=true;  
+        let a=angleToP(boss); 
+        for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.4, s:1.2, r:20, bounce:1}); 
+    }, 
+    
+    // [Phase 3] Aimed Laser & Speed
+    12: () => { // 조준 레이저 (벽에서 플레이어 향해)
+        boss.freeze=false; 
+        let side = Math.floor(Math.random() * 4);
+        let lx, ly;
+        if(side===0) { lx = Math.random()*600; ly = 0; }
+        else if(side===1) { lx = 600; ly = Math.random()*800; }
+        else if(side===2) { lx = Math.random()*600; ly = 800; }
+        else { lx = 0; ly = Math.random()*800; }
+        
+        let aimA = Math.atan2(player.y - ly, player.x - lx);
+        shoot({x:lx, y:ly, a:aimA, s:0, w:1600, h:30, isLaser:true, warnTime:70, activeTime:40}); 
     }, 
     13: () => { boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); }, 
-    14: () => { 
+    14: () => { // 조준 십자 (플레이어 위치)
         boss.freeze=false; 
-        shoot({x:0, y:player.y, a:0, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30}); 
-        shoot({x:player.x, y:0, a:Math.PI/2, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30});
+        shoot({x:0, y:player.y, a:0, s:0, w:1600, h:30, isLaser:true, warnTime:80, activeTime:40}); 
+        shoot({x:player.x, y:0, a:Math.PI/2, s:0, w:1600, h:30, isLaser:true, warnTime:80, activeTime:40});
     }, 
     15: () => { boss.freeze=true;  let r=200; for(let i=0; i<8; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2.0, accel:0.05, homing:0.01, warnTime:40}); }, 
-    16: () => { 
+    16: () => { // 회전 레이저 (회피 가능하게)
         boss.freeze=true; let laserW = bossClone ? 400 : 1600; let startAngle = boss.angle;
-        for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:50, activeTime:60, curve:0.015});
-        if(bossClone) for(let i=0; i<4; i++) shoot({x:bossClone.x, y:bossClone.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:50, activeTime:60, curve:-0.015});
+        for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:60, activeTime:60, curve:0.015});
+        if(bossClone) for(let i=0; i<4; i++) shoot({x:bossClone.x, y:bossClone.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:60, activeTime:60, curve:-0.015});
     }, 
-    17: () => { boss.freeze=false; shoot({x:Math.random()*500+50, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:60, activeTime:30}); },
+    17: () => { // 조준 천둥 (플레이어 위에서)
+        boss.freeze=false; 
+        shoot({x:player.x, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:60, activeTime:30}); 
+    },
     18: () => { 
         if(!bossClone && boss.hp > 0 && boss.ultState === 'none') { 
             boss.freeze = true;
@@ -207,8 +236,18 @@ const patterns = {
             spawnParticles(bossClone.x, bossClone.y, '#fff', 30, 5);
         }
     },
-    19: () => { boss.freeze=true; let count=24; for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, c:'#fff', delay: 30}); setTimeout(() => boss.freeze=false, 500); },
-    20: () => { boss.freeze=true; bossShoot({a:boss.angle, s:0, c:'#fff', w:1600, h:30, isLaser:true, warnTime:30, activeTime:60, curve:0.02}); bossShoot({a:boss.angle+Math.PI, s:0, c:'#fff', w:1600, h:30, isLaser:true, warnTime:30, activeTime:60, curve:0.02}); boss.angle += 0.2; }
+    // [Phase 4] The Absolute (White)
+    19: () => { 
+        boss.freeze=true; let count=24; 
+        for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, delay: 30}); 
+        setTimeout(() => boss.freeze=false, 500); 
+    },
+    20: () => { 
+        boss.freeze=true; 
+        bossShoot({a:boss.angle, s:0, w:1600, h:30, isLaser:true, warnTime:40, activeTime:60, curve:0.02}); 
+        bossShoot({a:boss.angle+Math.PI, s:0, w:1600, h:30, isLaser:true, warnTime:40, activeTime:60, curve:0.02}); 
+        boss.angle += 0.2; 
+    }
 };
 
 let patternTimer = 0;
@@ -223,11 +262,17 @@ function pickPatterns() {
     if (p === 3) count = Math.random() < 0.8 ? 2 : 3;
     if (p === 4) count = 3;
 
+    // ★ 4페이즈 버그 수정 (명확한 패턴 풀)
+    if (p === 4) {
+        let allPatterns = [1,2,3,4,5,6, 7,8,9,10,11, 12,13,14,15,16,17,18, 19,20];
+        activePatterns = allPatterns.sort(() => 0.5 - Math.random()).slice(0, 3);
+        return;
+    }
+
     let pool = [];
     if (p === 1) pool = [1,2,3,4,5,6]; 
     if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11]; 
     if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,13,14,15,16,17,18]; 
-    if (p === 4) pool = [8,10,12,13,14,16,17,18, 19,20];
 
     for(let i=0; i<count; i++) {
         let idx = Math.floor(Math.random() * pool.length);
@@ -303,7 +348,7 @@ function useSkill(id) {
     if (id === 9) { 
         let targets = bullets.filter(b => b.isEnemy && !b.isLaser && !b.isSuction);
         targets.sort((a,b) => Math.hypot(player.x-a.x, player.y-a.y) - Math.hypot(player.x-b.x, player.y-b.y));
-        if (targets.length > 0) createExplosion(targets[0].x, targets[0].y, 150);
+        if (targets.length > 0) createExplosion(targets[0].x, targets[0].y, 350);
         else skills[id].timer = 30; 
     }
     if (id === 10) gravityObj = { x: player.x, y: player.y, r: 200, absorbed: 0 }; 
@@ -389,7 +434,7 @@ function startPhase2() {
     setTimeout(() => { gameScreen.classList.remove('shake-effect'); msgBox.style.display = 'none'; boss.transitioning = false; }, 1500);
     setTimeout(() => {
         for(let i=0; i<8; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/8*i, s:0, c:'#f00', w:1600, h:20, isLaser:true, warnTime:40, activeTime:30});
-        for(let i=0; i<20; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*7, s:Math.random()*3+2, c:'#ffaa00', r:12}); 
+        for(let i=0; i<12; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*7, s:Math.random()*3+2, c:'#ffaa00', r:12}); 
     }, 500);
 }
 
@@ -459,11 +504,10 @@ function updateBlackHole() {
 
 function triggerExplosion(playerDist) {
     boss.ultState = 'none'; boss.freeze = false; boss.ultTimer = 0;
-    msgBox.style.display = 'none'; gameScreen.classList.remove('invert-effect');
+    msgBox.style.display = 'none'; 
     gameScreen.classList.add('shake-effect');
     setTimeout(() => gameScreen.classList.remove('shake-effect'), 500);
-
-    spawnParticles(player.x, player.y, 'white', 50, 10);
+    for(let i=0; i<5; i++) spawnParticles(boss.x, boss.y, '#a0f', 50, 15);
 
     if (playerDist < 250 && !godMode && player.invul <= 0 && !skills[1].active) {
         let damage = Math.floor((250 - playerDist) / 40); 
@@ -938,11 +982,10 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Digit1') useSkill(1); if (e.code === 'Digit2') useSkill(2);
     if (e.code === 'Digit3') useSkill(3); if (e.code === 'Digit4') useSkill(4);
     if (e.code === 'Digit5') useSkill(5); if (e.code === 'Digit6') useSkill(6);
-    if (e.code === 'KeyQ') useSkill(7); if (e.code === 'KeyW') useSkill(8);
-    if (e.code === 'KeyE') useSkill(9); if (e.code === 'KeyR' && state==='play') useSkill(10);
+    if (e.code === 'Digit7') useSkill(7); if (e.code === 'Digit8') useSkill(8);
+    if (e.code === 'Digit9') useSkill(9); if (e.code === 'Digit0') useSkill(10);
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') useSkill(11);
 
-    // ★ F1~F4 키 바인딩 (관리자 모드일 때만 작동)
     if (godMode) {
         if (e.code === 'F1') setPhase(1);
         if (e.code === 'F2') setPhase(2);
