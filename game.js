@@ -6,7 +6,7 @@ const hpBox = document.getElementById('hp-box');
 const msgBox = document.getElementById('msg-box');
 const adminMsg = document.getElementById('admin-msg');
 const gameScreen = document.getElementById('game-screen');
-// 디버그용 요소
+// 디버그용
 const debugPanel = document.getElementById('debug-panel');
 const dFps = document.getElementById('d-fps');
 const dHp = document.getElementById('d-hp');
@@ -20,7 +20,7 @@ let godMode = false;
 let timeScale = 1.0; 
 let isRewinding = false;
 let loopCount = 0;
-let lastTime = Date.now(); // FPS 계산용
+let lastTime = Date.now();
 
 let gameStateHistory = [];
 const MAX_HISTORY = 300; 
@@ -68,13 +68,12 @@ const skills = {
     11: { name: '리콜', cd: 3600, duration: 0, active: false, timer: 0 }
 };
 
-// ★ 패턴 이름 매핑 (디버깅용)
 const patternNames = {
-    1: "Spiral (나선)", 2: "Ring (원형)", 3: "Aimed (조준)", 4: "Windmill (바람개비)", 5: "Rain (비)", 6: "Accel (가속)",
-    7: "Bouncing (도탄)", 8: "Snipe (저격)", 9: "DNA (나선)", 10: "Bombard (폭격)", 11: "Fan Bounce (부채꼴)",
-    12: "Multi-Laser (다방향)", 13: "Homing (유도)", 14: "Cross Laser (십자)", 15: "Trap (포위)", 
-    16: "Spin Laser (회전)", 17: "Thunder (천둥)", 18: "Clone (분신)",
-    19: "Time Stop (시간정지)", 20: "White Laser (백색광)"
+    1: "Spiral", 2: "Ring", 3: "Aimed", 4: "Windmill", 5: "Rain", 6: "Accel",
+    7: "Bouncing", 8: "Snipe", 9: "DNA", 10: "Bombard", 11: "Fan Bounce",
+    12: "Multi-Laser", 13: "Homing", 14: "Cross Laser", 15: "Trap", 
+    16: "Spin Laser", 17: "Thunder", 18: "Clone",
+    19: "Time Stop", 20: "White Laser"
 };
 
 function getPhaseColor() {
@@ -91,14 +90,24 @@ function getBulletColor() {
     return '#ff0000'; 
 }
 
-// ★ 관리자 기능: 페이즈 강제 설정
+// ★ [버그 수정] 페이즈 강제 설정 함수
 window.setPhase = function(p) {
     boss.phase = p;
-    boss.hp = boss.maxHp;
+    
+    // ★ 체력을 해당 페이즈에 맞게 조정 (그래야 자동 전환 로직이 덮어쓰지 않음)
+    if (p === 1) boss.hp = boss.maxHp; // 100%
+    if (p === 2) boss.hp = boss.maxHp * 0.75; // 75%
+    if (p === 3) boss.hp = boss.maxHp * 0.50; // 50%
+    if (p === 4) boss.hp = boss.maxHp * 0.25; // 25%
+
+    // 상태 강제 초기화
     clearAllPatterns();
     bullets = [];
     boss.ultState = 'none';
-    gameScreen.className = ''; // 이펙트 초기화
+    boss.ultTimer = 0;
+    boss.transitioning = false; // ★ 전환 중 상태 해제
+    boss.freeze = false; // ★ 멈춤 해제
+    gameScreen.className = ''; 
     
     // 페이즈별 초기 연출 트리거
     if(p===2) startPhase2();
@@ -112,24 +121,15 @@ window.setPhase = function(p) {
 
 function updateDebugPanel() {
     if(!godMode) return;
-    
-    // FPS
     let now = Date.now();
     let delta = now - lastTime;
     lastTime = now;
     if(frame % 10 === 0) dFps.innerText = Math.round(1000/delta);
-
     dHp.innerText = Math.floor(boss.hp);
     dPhase.innerText = boss.phase;
-
-    // 활성 패턴 목록
     let listHtml = "";
-    activePatterns.forEach(pid => {
-        listHtml += `<li>[${pid}] ${patternNames[pid]}</li>`;
-    });
-    // 궁극기 상태면 표시
+    activePatterns.forEach(pid => { listHtml += `<li>[${pid}] ${patternNames[pid]}</li>`; });
     if(boss.ultState !== 'none') listHtml += `<li style="color:red">ULT: ${boss.ultState}</li>`;
-    
     dPatterns.innerHTML = listHtml;
 }
 
@@ -148,7 +148,6 @@ function shoot(p) {
     let width = p.w || 0;
     if (p.isLaser) width = 1600; 
     let color = p.c || getBulletColor();
-
     bullets.push({
         x: p.x, y: p.y, speed: p.s, angle: p.a,
         r: p.r || 4, color: color,
@@ -184,8 +183,7 @@ const patterns = {
     10: () => { boss.freeze=false; shoot({x:Math.random()*600, y:Math.random()*300, a:Math.PI/2, s:0, accel:0.05, r:20, warnTime:50}); },
     11: () => { boss.freeze=true;  let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.4, s:3.0, r:15, bounce:1}); }, 
     12: () => { 
-        boss.freeze=false; 
-        for(let i=0; i<3; i++) setTimeout(() => shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:0, w:1600, h:15, isLaser:true, warnTime:40, activeTime:20}), i*100);
+        boss.freeze=false; for(let i=0; i<3; i++) setTimeout(() => shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:0, w:1600, h:15, isLaser:true, warnTime:40, activeTime:20}), i*100);
     }, 
     13: () => { boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); }, 
     14: () => { 
@@ -508,10 +506,8 @@ function update() {
     saveGameState();
     frame++; 
     updateSkills();
-    
-    // ★ 관리자 패널 업데이트
     if(godMode) updateDebugPanel();
-
+    
     if (player.invul > 0) player.invul--;
     if (player.slowTimer > 0) player.slowTimer--;
     
@@ -671,9 +667,9 @@ function update() {
         if (b.isEnemy) {
             if (skills[3].active && !b.isLaser && !b.isSuction) {
                 let dist = Math.hypot(player.x - b.x, player.y - b.y);
-                if (dist < 400 && dist > 60) { // 최소사거리 적용
+                if (dist < 400 && dist > 60) { 
                     b.isEnemy = false; b.color = 'cyan'; b.angle = angleToP(b) + Math.PI; 
-                    b.homing = 0.2; // 반사 유도
+                    b.homing = 0.2; 
                     continue;
                 }
             }
@@ -793,7 +789,6 @@ function draw() {
     });
     if (!skills[2].active) afterimages = afterimages.filter(i => i.alpha > 0);
 
-    // 레이어 순서: 배경 -> 잔상 -> 설치물 -> 탄환 -> 분신 -> 보스
     if (shieldObj) {
         ctx.save();
         ctx.translate(shieldObj.x, shieldObj.y);
@@ -852,7 +847,6 @@ function draw() {
         ctx.restore();
     }
 
-    // 블랙홀 (직접 그리기)
     if (boss.ultState === 'gathering') {
         ctx.save();
         ctx.translate(boss.x, boss.y);
@@ -869,7 +863,6 @@ function draw() {
         ctx.restore();
     }
 
-    // 보스 (맨 위)
     if(boss.ultState === 'none' || boss.ultState === 'warning') {
         let color = getPhaseColor();
         ctx.shadowBlur = 20; ctx.shadowColor = color;
@@ -948,6 +941,14 @@ window.addEventListener('keydown', e => {
     if (e.code === 'KeyQ') useSkill(7); if (e.code === 'KeyW') useSkill(8);
     if (e.code === 'KeyE') useSkill(9); if (e.code === 'KeyR' && state==='play') useSkill(10);
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') useSkill(11);
+
+    // ★ F1~F4 키 바인딩 (관리자 모드일 때만 작동)
+    if (godMode) {
+        if (e.code === 'F1') setPhase(1);
+        if (e.code === 'F2') setPhase(2);
+        if (e.code === 'F3') setPhase(3);
+        if (e.code === 'F4') setPhase(4);
+    }
 });
 window.addEventListener('keyup', e=>keys[e.code]=false);
 loop();
