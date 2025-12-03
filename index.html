@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS RUSH: DEBUGGER</title>
+    <title>BOSS RUSH: v24.0 (Admin)</title>
     <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
@@ -13,7 +13,6 @@
             
             <div id="ui-layer">
                 <div id="score-box">SCORE: 0</div>
-                <div id="pattern-box">WAITING...</div>
                 <div id="hp-box">♥♥♥♥♥</div>
                 <div id="msg-box"></div>
                 <div id="admin-msg">GOD MODE ON</div>
@@ -29,11 +28,29 @@
                 <div class="skill" id="skill-4"><div class="key">4</div><div class="name">방패</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-5"><div class="key">5</div><div class="name">레일건</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-6"><div class="key">6</div><div class="name">오토</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-7"><div class="key">7</div><div class="name">동결</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-8"><div class="key">8</div><div class="name">흡혈</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-9"><div class="key">9</div><div class="name">유폭</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-10"><div class="key">0</div><div class="name">중력장</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-7"><div class="key">Q</div><div class="name">동결</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-8"><div class="key">W</div><div class="name">흡혈</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-9"><div class="key">E</div><div class="name">유폭</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-10"><div class="key">R</div><div class="name">중력장</div><div class="cooldown"></div></div>
                 <div class="skill special" id="skill-11"><div class="key">-</div><div class="name">리콜</div><div class="cooldown"></div></div>
+            </div>
+        </div>
+
+        <div id="debug-panel">
+            <div class="debug-title">ADMIN CONTROL</div>
+            <div class="phase-buttons">
+                <button onclick="setPhase(1)">P1</button>
+                <button onclick="setPhase(2)">P2</button>
+                <button onclick="setPhase(3)">P3</button>
+                <button onclick="setPhase(4)">P4</button>
+            </div>
+            <div id="debug-info">
+                <p>FPS: <span id="d-fps">60</span></p>
+                <p>HP: <span id="d-hp">0</span></p>
+                <p>Phase: <span id="d-phase">1</span></p>
+                <hr>
+                <p>Active Patterns:</p>
+                <ul id="d-patterns"></ul>
             </div>
         </div>
     </div>
