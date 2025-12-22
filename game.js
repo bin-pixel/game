@@ -80,23 +80,23 @@ function getPhaseColor() {
 }
 
 function getBulletColor() {
-    if (boss.phase === 1) return '#ff9999'; 
+    if (boss.phase === 1) return '#ff9999';
     if (boss.phase === 2) return '#66ff66'; 
     if (boss.phase === 3) return '#ffff66'; 
-    return '#ff0000'; 
+    return '#ff0000';
 }
 
 window.setPhase = function(p) {
     boss.phase = p;
-    if (p === 1) boss.hp = boss.maxHp; 
+    if (p === 1) boss.hp = boss.maxHp;
     if (p === 2) boss.hp = boss.maxHp * 0.75; 
-    if (p === 3) boss.hp = boss.maxHp * 0.50; 
+    if (p === 3) boss.hp = boss.maxHp * 0.50;
     if (p === 4) boss.hp = boss.maxHp * 0.25; 
 
     clearAllPatterns();
     bullets = [];
     boss.transitioning = false; 
-    boss.freeze = false; 
+    boss.freeze = false;
     gameScreen.className = ''; 
     
     if(p===2) startPhase2();
@@ -134,9 +134,8 @@ function spawnText(x, y, text, color, size) {
 
 function shoot(p) {
     let width = p.w || 0;
-    if (p.isLaser) width = 1600; 
+    if (p.isLaser) width = 1600;
     let color = (p.isLaser) ? getPhaseColor() : (p.c || getBulletColor());
-
     bullets.push({
         x: p.x, y: p.y, speed: p.s, angle: p.a,
         r: p.r || 4, color: color,
@@ -171,38 +170,49 @@ const patterns = {
     
     // ★ 수정: 대형 탄환류 (한 발씩 깔끔하게)
     7: () => { 
-        boss.freeze=false; 
+        boss.freeze=false;
         for(let i=0; i<3; i++) bossShoot({a:Math.PI*2/3*i+boss.angle, s:3.5, r:20, bounce:1}); 
         boss.angle+=0.05; 
     }, 
-    8: () => { boss.freeze=true;  bossShoot({a:angleToP(boss), s:6, r:30, warnTime:60}); }, 
+    8: () => { boss.freeze=true; bossShoot({a:angleToP(boss), s:6, r:30, warnTime:60}); }, 
     9: () => { boss.freeze=false; for(let i=0; i<2; i++) bossShoot({a:boss.angle+Math.PI*i*0.8, s:4.0, r:15, curve:0.02}); boss.angle+=0.1; },
     // ★ 수정: 지렁이 버그 수정 (한 발만 발사)
     10: () => { 
-        boss.freeze=false; 
+        boss.freeze=false;
         let bx = Math.random()*600, by = Math.random()*300;
         let aimA = Math.atan2(player.y - by, player.x - bx);
         shoot({x:bx, y:by, a:aimA, s:0, accel:0.1, r:25, warnTime:50}); 
     },
     // ★ 수정: 지렁이 버그 수정
-    11: () => { boss.freeze=true;  let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.5, s:4.5, r:18, bounce:1}); }, 
+    11: () => { boss.freeze=true;
+        let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.5, s:4.5, r:18, bounce:1});
+    }, 
     
-    12: () => { boss.freeze=false; for(let i=0; i<3; i++) setTimeout(() => shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:0, w:1600, h:15, isLaser:true, warnTime:40, activeTime:20}), i*100); }, 
+    12: () => { boss.freeze=false;
+        for(let i=0; i<3; i++) setTimeout(() => shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:0, w:1600, h:15, isLaser:true, warnTime:40, activeTime:20}), i*100);
+    }, 
     13: () => { boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); }, 
     14: () => { 
-        boss.freeze=false; 
+        boss.freeze=false;
         shoot({x:0, y:player.y, a:0, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30}); 
         shoot({x:player.x, y:0, a:Math.PI/2, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30});
     }, 
-    15: () => { boss.freeze=true;  let r=200; for(let i=0; i<8; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2.0, accel:0.05, homing:0.01, warnTime:40}); }, 
+    15: () => { boss.freeze=true;  let r=200;
+        for(let i=0; i<8; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2.0, accel:0.05, homing:0.01, warnTime:40});
+    }, 
     16: () => { 
-        boss.freeze=true; let laserW = 1600; let startAngle = boss.angle;
+        boss.freeze=true;
+        let laserW = 1600; let startAngle = boss.angle;
         for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:50, activeTime:60, curve:0.015});
     }, 
     17: () => { boss.freeze=false; shoot({x:Math.random()*500+50, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:60, activeTime:30}); },
     
-    19: () => { boss.freeze=true; let count=24; for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, c:'#fff', delay: 30}); setTimeout(() => boss.freeze=false, 500); },
-    20: () => { boss.freeze=true; bossShoot({a:boss.angle, s:0, c:'#fff', w:1600, h:30, isLaser:true, warnTime:30, activeTime:60, curve:0.02}); bossShoot({a:boss.angle+Math.PI, s:0, c:'#fff', w:1600, h:30, isLaser:true, warnTime:30, activeTime:60, curve:0.02}); boss.angle += 0.2; },
+    19: () => { boss.freeze=true; let count=24;
+        for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, c:'#fff', delay: 30}); setTimeout(() => boss.freeze=false, 500);
+    },
+    20: () => { boss.freeze=true; bossShoot({a:boss.angle, s:0, c:'#fff', w:1600, h:30, isLaser:true, warnTime:30, activeTime:60, curve:0.02});
+        bossShoot({a:boss.angle+Math.PI, s:0, c:'#fff', w:1600, h:30, isLaser:true, warnTime:30, activeTime:60, curve:0.02}); boss.angle += 0.2;
+    },
     21: () => {
         boss.freeze=false;
         for(let i=0; i<4; i++) {
@@ -212,17 +222,16 @@ const patterns = {
 };
 
 let patternTimer = 0;
-let activePatterns = []; 
-
+let activePatterns = [];
 function pickPatterns() {
     activePatterns = [];
     let p = boss.phase;
     let count = 1;
-    if (p === 1 && Math.random() < 0.1) count = 1; 
-    if (p === 2 && Math.random() < 0.7) count = 2; 
+    if (p === 1 && Math.random() < 0.1) count = 1;
+    if (p === 2 && Math.random() < 0.7) count = 2;
     if (p === 3) count = Math.random() < 0.8 ? 2 : 3;
     if (p === 4) count = (Math.random() < 0.1) ? 4 : 3;
-
+    
     if (p === 4) {
         let allPatterns = [1,2,3,4,5,6, 7,8,9,10,11, 12,13,14,15,16,17, 19,20, 21];
         activePatterns = allPatterns.sort(() => 0.5 - Math.random()).slice(0, count);
@@ -231,7 +240,7 @@ function pickPatterns() {
 
     let pool = [];
     if (p === 1) pool = [1,2,3,4,5,6]; 
-    if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11, 21]; 
+    if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11, 21];
     if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,13,14,15,16,17]; 
 
     for(let i=0; i<count; i++) {
@@ -283,7 +292,8 @@ function useSkill(id) {
     if (state !== 'play' || skills[id] === undefined || skills[id].timer > 0 || isRewinding) return;
     if (id === 11) {
         if(gameStateHistory.length > 0) {
-            skills[id].timer = skills[id].cd; isRewinding = true;
+            skills[id].timer = skills[id].cd;
+            isRewinding = true;
             gameScreen.className = 'rewind-effect';
             msgBox.style.display = 'block'; msgBox.innerText = "REWINDING..."; msgBox.style.color = '#fff';
         }
@@ -293,7 +303,7 @@ function useSkill(id) {
     skills[id].timer = skills[id].cd;
     skills[id].activeTimer = skills[id].duration;
 
-    if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 }; 
+    if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
     if (id === 5) { 
         shoot({ x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, c: 'cyan', isEnemy: false, damage: 400, isRailgun: true });
         player.y = Math.min(790, player.y + 30);
@@ -301,7 +311,7 @@ function useSkill(id) {
         gameScreen.classList.add('shake-effect');
         setTimeout(() => gameScreen.classList.remove('shake-effect'), 200);
     }
-    if (id === 10) gravityObj = { x: player.x, y: player.y, r: 200, absorbed: 0 }; 
+    if (id === 10) gravityObj = { x: player.x, y: player.y, r: 200, absorbed: 0 };
 }
 
 function createExplosion(x, y, radius) {
@@ -350,7 +360,7 @@ function updateSkills() {
     else if (skills[7].active) { timeScale = 0; gameScreen.style.filter = "grayscale(100%)"; }
     else { 
         gameScreen.classList.remove('invert-effect');
-        gameScreen.style.filter = ""; 
+        gameScreen.style.filter = "";
         timeScale = 1.0;
     }
 }
@@ -364,14 +374,13 @@ function checkPhaseTransition(newPhase) {
     msgBox.style.display = 'block';
     msgBox.innerText = `PHASE ${newPhase} INCOMING...`;
     msgBox.style.color = 'red';
-
-    setTimeout(() => {
-        boss.phase = newPhase;
-        if(newPhase === 2) startPhase2();
-        else if(newPhase === 3) startPhase3();
-        else if(newPhase === 4) startPhase4();
-        gameScreen.classList.remove('warning-pulse');
-        boss.freeze = false;
+    setTimeout(() => { 
+        boss.phase = newPhase; 
+        if(newPhase === 2) startPhase2(); 
+        else if(newPhase === 3) startPhase3(); 
+        else if(newPhase === 4) startPhase4(); 
+        gameScreen.classList.remove('warning-pulse'); 
+        boss.freeze = false; 
     }, 2000);
 }
 
@@ -381,21 +390,27 @@ function startPhase2() {
     setTimeout(() => { gameScreen.classList.remove('shake-effect'); msgBox.style.display = 'none'; boss.transitioning = false; }, 1500);
     setTimeout(() => {
         for(let i=0; i<8; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/8*i, s:0, c:'#f00', w:1600, h:20, isLaser:true, warnTime:40, activeTime:30});
-        for(let i=0; i<20; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*7, s:Math.random()*3+2, c:'#ffaa00', r:12}); 
+        for(let i=0; i<20; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*7, s:Math.random()*3+2, c:'#ffaa00', r:12});
     }, 500);
 }
 
 function startPhase3() {
     msgBox.innerText = "PHASE 3: SPEED"; msgBox.style.color = '#a0f';
-    gameScreen.classList.add('shake-effect'); 
+    gameScreen.classList.add('shake-effect');
     setTimeout(() => { gameScreen.classList.remove('shake-effect'); msgBox.style.display = 'none'; boss.transitioning = false; }, 2000);
-    for(let i=0; i<6; i++) { setTimeout(() => { shoot({x: 50 + i * 100, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:50, activeTime:30, c:'#f00'}); }, i * 100); }
-    setTimeout(() => { for(let i=0; i<7; i++) { setTimeout(() => { shoot({x: i * 100, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:50, activeTime:30, c:'#f00'}); }, i * 100); } }, 1000);
+    for(let i=0; i<6; i++) {
+        setTimeout(() => { shoot({x: 50 + i * 100, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:50, activeTime:30, c:'#f00'}); }, i * 100);
+    }
+    setTimeout(() => {
+        for(let i=0; i<7; i++) {
+            setTimeout(() => { shoot({x: i * 100, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:50, activeTime:30, c:'#f00'}); }, i * 100);
+        }
+    }, 1000);
 }
 
 function startPhase4() {
     msgBox.innerText = "PHASE 4: THE ABSOLUTE"; msgBox.style.color = '#fff';
-    gameScreen.classList.add('glitch-effect'); 
+    gameScreen.classList.add('glitch-effect');
     setTimeout(() => { gameScreen.classList.remove('glitch-effect'); msgBox.style.display = 'none'; boss.transitioning = false; }, 2000);
     for(let i=0; i<10; i++) setTimeout(() => spawnParticles(Math.random()*600, Math.random()*800, 'white', 50, 10), i*100);
 }
