@@ -2,17 +2,13 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS RUSH: v25.0 (Admin)</title>
-    <link rel="stylesheet" href="style.css?v=25">
+    <title>BOSS RUSH: v24.0 (Admin)</title>
+    <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
     <div id="game-wrapper">
         <div id="game-screen">
-            <div class="boss-hp-container">
-                <div id="boss-hp-bar"></div>
-                <div id="boss-hp-text">10000 / 10000</div>
-            </div>
-            
+            <div class="boss-hp-container"><div id="boss-hp-bar"></div></div>
             <canvas id="c" width="600" height="800"></canvas>
             
             <div id="ui-layer">
@@ -20,7 +16,6 @@
                 <div id="hp-box">♥♥♥♥♥</div>
                 <div id="msg-box"></div>
                 <div id="admin-msg">GOD MODE ON</div>
-                <div id="dist-msg" style="display:none; color:#0f0; font-size:12px; margin-top:5px;">[V] DISTANCE VIEW ON</div>
             </div>
         </div>
 
@@ -32,7 +27,7 @@
                 <div class="skill" id="skill-3"><div class="key">3</div><div class="name">반사</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-4"><div class="key">4</div><div class="name">방패</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-5"><div class="key">5</div><div class="name">레일건</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-6"><div class="key">6</div><div class="name">샷건</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-6"><div class="key">6</div><div class="name">오토</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-7"><div class="key">7</div><div class="name">동결</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-8"><div class="key">8</div><div class="name">흡혈</div><div class="cooldown"></div></div>
                 <div class="skill" id="skill-9"><div class="key">9</div><div class="name">유폭</div><div class="cooldown"></div></div>
@@ -53,10 +48,12 @@
                 <p>FPS: <span id="d-fps">60</span></p>
                 <p>HP: <span id="d-hp">0</span></p>
                 <p>Phase: <span id="d-phase">1</span></p>
-                <p>Obj: <span id="d-patterns">0</span></p>
+                <hr>
+                <p>Active Patterns:</p>
+                <ul id="d-patterns"></ul>
             </div>
         </div>
     </div>
-    <script src="game.js?v=25"></script>
+    <script src="game.js?v=24"></script>
 </body>
 </html>
