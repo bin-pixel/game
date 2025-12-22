@@ -1,6 +1,7 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const uiHp = document.getElementById('boss-hp-bar');
+const uiHpText = document.getElementById('boss-hp-text');
 const scoreBox = document.getElementById('score-box');
 const hpBox = document.getElementById('hp-box');
 const msgBox = document.getElementById('msg-box');
@@ -21,6 +22,7 @@ let timeScale = 1.0;
 let isRewinding = false;
 let loopCount = 0;
 let lastTime = Date.now();
+let showScoreLines = false; // 점수 라인 표시 여부
 
 let gameStateHistory = [];
 const MAX_HISTORY = 300; 
@@ -34,7 +36,7 @@ const player = {
 
 const boss = { 
     x: 300, y: 150, r: 30, baseR: 30,
-    hp: 12000, maxHp: 12000, 
+    hp: 10000, maxHp: 10000, // 체력 10000으로 수정
     phase: 1, angle: 0,
     transitioning: false, freeze: false, moveTimer: 0,
     patternCooldown: 0 
@@ -86,6 +88,15 @@ function getBulletColor() {
     return '#ff0000';
 }
 
+function getScoreMultiplier() {
+    // 필드 기준 점수: 위로 갈수록 점수 높음
+    if (player.y < 150) return 5;
+    if (player.y < 300) return 4;
+    if (player.y < 450) return 3;
+    if (player.y < 600) return 2;
+    return 1;
+}
+
 window.setPhase = function(p) {
     boss.phase = p;
     if (p === 1) boss.hp = boss.maxHp;
@@ -134,15 +145,30 @@ function spawnText(x, y, text, color, size) {
 
 function shoot(p) {
     let width = p.w || 0;
-    if (p.isLaser) width = 1600;
+    if (p.isLaser) {
+        width = 1600;
+        // 3,4페이즈 레이저 두께 강화
+        if (boss.phase >= 3) {
+            p.h = (p.h || 20) * 1.5;
+        }
+    }
     let color = (p.isLaser) ? getPhaseColor() : (p.c || getBulletColor());
+    
+    // 탄환 수명 최적화: 속도에 반비례 (빠르면 짧고, 느리면 김)
+    // 속도 2~10 가정. 최소 10초(600프레임) ~ 최대 30초(1800프레임)
+    let speedVal = Math.abs(p.s);
+    let calcLife = 1800 - (speedVal * 100);
+    if (calcLife < 600) calcLife = 600;
+    if (calcLife > 1800) calcLife = 1800;
+    if (p.lifeTime) calcLife = p.lifeTime; // 지정된 수명 우선
+
     bullets.push({
         x: p.x, y: p.y, speed: p.s, angle: p.a,
         r: p.r || 4, color: color,
         accel: p.accel || 0, curve: p.curve || 0, homing: p.homing || 0,
         isLaser: p.isLaser || false, w: width, h: p.h || 20, 
         warnTime: p.warnTime || 0, activeTime: p.activeTime || 30, 
-        lifeTime: p.homing ? 300 : 9999, timer: 0, 
+        lifeTime: p.homing ? 300 : calcLife, timer: 0, 
         bounce: p.bounce || 0, delay: p.delay || 0, grazed: false, 
         isEnemy: p.isEnemy !== undefined ? p.isEnemy : true,
         damage: p.damage || 3,
@@ -168,7 +194,6 @@ const patterns = {
     5: () => { boss.freeze=false; shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:2.0}); }, 
     6: () => { boss.freeze=true;  let a=angleToP(boss); bossShoot({a:a, s:1.5, accel:0.03}); }, 
     
-    // ★ 수정: 대형 탄환류 (한 발씩 깔끔하게)
     7: () => { 
         boss.freeze=false;
         for(let i=0; i<3; i++) bossShoot({a:Math.PI*2/3*i+boss.angle, s:3.5, r:20, bounce:1}); 
@@ -176,14 +201,12 @@ const patterns = {
     }, 
     8: () => { boss.freeze=true; bossShoot({a:angleToP(boss), s:6, r:30, warnTime:60}); }, 
     9: () => { boss.freeze=false; for(let i=0; i<2; i++) bossShoot({a:boss.angle+Math.PI*i*0.8, s:4.0, r:15, curve:0.02}); boss.angle+=0.1; },
-    // ★ 수정: 지렁이 버그 수정 (한 발만 발사)
     10: () => { 
         boss.freeze=false;
         let bx = Math.random()*600, by = Math.random()*300;
         let aimA = Math.atan2(player.y - by, player.x - bx);
         shoot({x:bx, y:by, a:aimA, s:0, accel:0.1, r:25, warnTime:50}); 
     },
-    // ★ 수정: 지렁이 버그 수정
     11: () => { boss.freeze=true;
         let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.5, s:4.5, r:18, bounce:1});
     }, 
@@ -192,20 +215,31 @@ const patterns = {
         for(let i=0; i<3; i++) setTimeout(() => shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:0, w:1600, h:15, isLaser:true, warnTime:40, activeTime:20}), i*100);
     }, 
     13: () => { boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); }, 
+    // ★ 수정: 십자 레이저 (다각도/랜덤 각도)
     14: () => { 
         boss.freeze=false;
-        shoot({x:0, y:player.y, a:0, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30}); 
-        shoot({x:player.x, y:0, a:Math.PI/2, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30});
+        let randA = Math.random() * Math.PI; // 랜덤 각도
+        shoot({x:0, y:player.y, a:randA, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30}); 
+        shoot({x:player.x, y:0, a:randA + Math.PI/2, s:0, w:1600, h:30, isLaser:true, warnTime:60, activeTime:30});
     }, 
     15: () => { boss.freeze=true;  let r=200;
         for(let i=0; i<8; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2.0, accel:0.05, homing:0.01, warnTime:40});
     }, 
+    // ★ 수정: 회전 십자 (회전 역전, 보스 고정, 발사점 보스 몸체)
     16: () => { 
-        boss.freeze=true;
+        boss.freeze=true; // 보스 고정
         let laserW = 1600; let startAngle = boss.angle;
-        for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:50, activeTime:60, curve:0.015});
+        // curve -0.015 (반시계)
+        for(let i=0; i<4; i++) shoot({x:boss.x, y:boss.y, a:startAngle+(Math.PI/2)*i, s:0, w:laserW, h:15, isLaser:true, warnTime:50, activeTime:60, curve:-0.015});
     }, 
-    17: () => { boss.freeze=false; shoot({x:Math.random()*500+50, y:0, a:Math.PI/2, s:0, w:1600, h:40, isLaser:true, warnTime:60, activeTime:30}); },
+    // ★ 수정: 조준 레이저 (다각도/대각선)
+    17: () => { 
+        boss.freeze=false; 
+        let sx = Math.random()*600;
+        let sy = Math.random()*200; // 상단 영역 랜덤
+        let angle = Math.atan2(player.y - sy, player.x - sx); // 플레이어 조준
+        shoot({x:sx, y:sy, a:angle, s:0, w:1600, h:40, isLaser:true, warnTime:60, activeTime:30}); 
+    },
     
     19: () => { boss.freeze=true; let count=24;
         for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, c:'#fff', delay: 30}); setTimeout(() => boss.freeze=false, 500);
@@ -241,7 +275,8 @@ function pickPatterns() {
     let pool = [];
     if (p === 1) pool = [1,2,3,4,5,6]; 
     if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11, 21];
-    if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,13,14,15,16,17]; 
+    // ★ 수정: 3페이즈에서 유도탄(13) 삭제 (15는 트랩이므로 유지)
+    if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,14,15,16,17]; 
 
     for(let i=0; i<count; i++) {
         let idx = Math.floor(Math.random() * pool.length);
@@ -321,13 +356,13 @@ function createExplosion(x, y, radius) {
         if(b.isEnemy && !b.dead && !b.isLaser && Math.hypot(b.x-x, b.y-y) < radius) {
             b.dead = true;
             spawnParticles(b.x, b.y, b.color, 3, 2);
-            score += 10;
+            // 탄환 제거 점수 삭제됨
         }
     });
 }
 
 function updateSkills() {
-    // 6, 8, 9는 루프에서 제외
+    // 6, 8, 9는 삭제되어 루프에서 제외
     [1, 2, 3, 4, 5, 7, 10, 11].forEach(i => {
         let s = skills[i];
         if (s.timer > 0) s.timer--;
@@ -367,6 +402,17 @@ function updateSkills() {
 
 function checkPhaseTransition(newPhase) {
     if (boss.transitioning || boss.phase === newPhase) return;
+    
+    // 페이즈 클리어 보너스
+    let bonus = 0;
+    if(newPhase === 2) bonus = 800;
+    if(newPhase === 3) bonus = 1000;
+    if(newPhase === 4) bonus = 1200;
+    if(bonus > 0) {
+        score += bonus;
+        spawnText(player.x, player.y - 40, `BONUS +${bonus}`, '#ffd700', 20);
+    }
+
     boss.transitioning = true;
     boss.freeze = true;
     clearAllPatterns();
@@ -477,7 +523,7 @@ function update() {
     if(keys['ArrowUp'] && player.y>5) player.y-=baseSpd;
     if(keys['ArrowDown'] && player.y<795) player.y+=baseSpd;
     
-    // 일반 사격: 레일건 X, 산데비스탄 X
+    // 일반 사격
     if (!skills[2].active && !skills[5].active && frame % 5 === 0) {
         let aimA = -Math.PI/2;
         shoot({x:player.x-10, y:player.y, a:aimA, s:15, r:3, c:'#afa', isEnemy:false});
@@ -504,7 +550,6 @@ function update() {
 
                 if (patterns[pat].cooldown <= 0) {
                     let freq = 10;
-                    // ★ 쿨타임 수정: 대형 탄(7,10,11)과 레이저류는 자주 쏘지 않음 (지렁이 방지)
                     if ([7, 8, 10, 11, 12, 14, 15, 16, 17, 19, 20, 21].includes(pat)) freq = 200; 
                     patterns[pat](); 
                     patterns[pat].cooldown = freq; 
@@ -513,14 +558,21 @@ function update() {
         });
     }
 
-    if (boss.hp <= 0) {
+    // ★ 버그 수정: 루프 시 게임 멈춤 방지 (state='clear' 로직 분리)
+    if (boss.hp <= 0 && state === 'play') {
         loopCount++;
-        score += 50000; 
+        score += 1500; // 페이즈 4 클리어 보너스
+        spawnText(player.x, player.y - 60, "LOOP CLEAR +1500", '#0ff', 25);
+        
         boss.hp = boss.maxHp; 
+        boss.phase = 1; // 1페이즈로 강제 리셋
+        boss.transitioning = false;
+        
         msgBox.style.display = 'block';
         msgBox.innerText = `LOOP ${loopCount} START!`;
         msgBox.style.color = '#fff';
         setTimeout(() => msgBox.style.display='none', 2000);
+        
         spawnParticles(boss.x, boss.y, 'white', 100, 10);
         clearAllPatterns();
         bullets = []; 
@@ -541,6 +593,7 @@ function update() {
     else boss.r = boss.baseR;
     
     uiHp.style.width = (hpR*100)+'%';
+    uiHpText.innerText = `${Math.ceil(boss.hp)} / ${boss.maxHp}`; // 체력 텍스트 표시
     let color = getPhaseColor();
     uiHp.style.background = color;
     
@@ -589,10 +642,10 @@ function update() {
         if(b.x<-100 || b.x>700 || b.y<-100 || b.y>900) b.dead = true;
 
         if (b.isEnemy) {
-            // 레일건 충돌
+            // 레일건 충돌 (히트박스 축소)
             if (skills[5].active) {
                 let rx = player.x; let ry = player.y - 50;
-                let rw = 1500;
+                let rw = 100; // 히트박스 100으로 축소 (시각적 1500 유지)
                 if(b.x > rx - rw/2 && b.x < rx + rw/2 && b.y < ry) {
                     if(!b.isBossShield && !b.isLaser) { 
                         b.dead = true;
@@ -670,7 +723,10 @@ function update() {
                     if(player.hp <= 0) state = 'over';
                 }
             } else if (!b.isLaser && dist < 20 && !b.grazed) { 
-                score += 5; b.grazed = true; 
+                // 탄환 스침 점수도 거리 비례
+                let mult = getScoreMultiplier();
+                score += 1 * mult; 
+                b.grazed = true; 
             }
 
         } else {
@@ -678,8 +734,13 @@ function update() {
             let dmg = b.damage || 3;
             if(Math.abs(b.x-boss.x)<30 && Math.abs(b.y-boss.y)<30) {
                 boss.hp -= dmg; 
-                score += 50; hitAny = true;
-                spawnText(boss.x, boss.y - 30, dmg, '#fff', 15);
+                hitAny = true;
+                
+                // ★ 점수 시스템: 데미지 대신 획득 점수 표시
+                let mult = getScoreMultiplier();
+                let gainScore = 5 * mult;
+                score += gainScore;
+                spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15); // 점수 표시
                 spawnParticles(b.x, b.y, 'cyan', 2, 2);
             }
             if(hitAny && !b.isLaser) b.dead = true;
@@ -704,6 +765,23 @@ function draw() {
     stars.forEach(s => {
         ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
     });
+
+    // ★ 점수 라인 표시
+    if (showScoreLines) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.font = "10px Arial";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+        
+        const lines = [150, 300, 450, 600];
+        const scores = [5, 4, 3, 2];
+        
+        lines.forEach((y, i) => {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(600, y); ctx.stroke();
+            ctx.fillText(`ZONE ${scores[i]} PTS`, 10, y - 5);
+        });
+        ctx.fillText(`ZONE 1 PTS`, 10, 790);
+    }
 
     afterimages.forEach((img, i) => {
         ctx.save(); ctx.globalAlpha = img.alpha;
@@ -832,6 +910,9 @@ window.addEventListener('keydown', e => {
         adminMsg.style.display = godMode ? 'block' : 'none'; 
         debugPanel.style.display = godMode ? 'flex' : 'none';
     }
+    // V키: 점수 라인 토글
+    if (e.code === 'KeyV') { showScoreLines = !showScoreLines; }
+
     if (e.code === 'Digit1') useSkill(1); if (e.code === 'Digit2') useSkill(2);
     if (e.code === 'Digit3') useSkill(3); if (e.code === 'Digit4') useSkill(4);
     if (e.code === 'Digit5') useSkill(5); 
