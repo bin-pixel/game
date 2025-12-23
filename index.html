@@ -5,51 +5,19 @@
     <title>NEON BULLET HELL: ONLINE</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div id="login-overlay" class="overlay">
-        <h1>NEON BULLET HELL</h1>
-        <p>ENTER YOUR CODENAME</p>
-        <input type="text" id="nickname-input" class="retro-input" placeholder="ID" maxlength="10">
-        <button id="login-btn" class="neon-btn">CONNECT</button>
-    </div>
-
-    <div id="skill-overlay" class="overlay hidden">
-        <h2>SELECT MODULES</h2>
-        <p>Choose 2 skills (Z / X). Space is Parry.</p>
-        <div id="skill-container"></div>
-        <button id="start-game-btn" class="neon-btn">INITIATE LINK</button>
-    </div>
-
-    <div id="result-overlay" class="overlay hidden">
-        <div id="new-record-anim">🎉 LEGENDARY RECORD! 🎉</div>
-        <h2 id="result-title">MISSION FAILED</h2>
-        <h1 id="final-score">SCORE: 0</h1>
-        <div id="rank-list">Connecting...</div>
-        <button id="restart-btn" class="neon-btn">REBOOT SYSTEM</button>
-    </div>
-
-    <div id="admin-modal" class="overlay hidden">
-        <h2 style="color:red;">ADMIN ACCESS</h2>
-        <input type="password" id="admin-pw" class="retro-input" placeholder="PASS" maxlength="4">
-    </div>
-
-    <div id="ui-layer" class="hidden">
-        <div id="boss-hp-container">
-            <div id="boss-hp-bar"></div>
-            <div id="boss-hp-text">10000 / 10000</div>
+<body class="lobby-body">
+    <div class="lobby-container">
+        <h1 class="glitch-text">NEON BULLET HELL</h1>
+        <div id="login-form">
+            <p>ENTER YOUR CODENAME</p>
+            <input type="text" id="nickname-input" class="retro-input" placeholder="ID" maxlength="10">
+            <button id="start-btn" class="neon-btn">CONNECT SYSTEM</button>
         </div>
-        <div id="score-box">SCORE: 0</div>
-        <div id="hp-box">♥♥♥♥♥</div>
-        <div id="skill-hud">
-            <div class="skill-icon" id="hud-z"><span class="key">Z</span><div class="cd"></div></div>
-            <div class="skill-icon" id="hud-x"><span class="key">X</span><div class="cd"></div></div>
-            <div class="skill-icon" id="hud-space"><span class="key">SPC</span><div class="cd"></div></div>
+        <div id="ranking-section">
+            <h2 class="rank-title">GLOBAL TOP 10</h2>
+            <div id="rank-list">Connecting to Server...</div>
         </div>
     </div>
-
-    <canvas id="c" width="600" height="800"></canvas>
-    <div id="admin-status">ADMIN MODE (CHEATER)</div>
-
     <script type="module" src="main.js"></script>
 </body>
 </html>
