@@ -1,4 +1,10 @@
 // index.js
+const savedNickname = localStorage.getItem('bossRush_nickname');
+if (!savedNickname) {
+    alert("게임 시작을 위해 닉네임 설정이 필요합니다.");
+    window.location.href = 'start.html'; // 강제 이동
+    throw new Error("Redirecting to start page..."); // 이후 코드 실행 방지
+}
 
 // 1. Firebase 초기화
 const firebaseConfig = {
