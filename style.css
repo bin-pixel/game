@@ -90,54 +90,6 @@ canvas { display: block; background: transparent; }
 .rewind-effect { animation: rewind-noise 1s infinite linear; }
 .warning-pulse { animation: warning 1s infinite; }
 
-/* ===============================
-   START OVERLAY (추가분)
-=============================== */
-
-#start-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.95);
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 999;
-}
-
-#start-overlay input {
-    padding: 10px;
-    font-size: 16px;
-    margin: 10px;
-}
-
-#skill-select {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 15px;
-}
-
-#skill-select button {
-    background: #222;
-    border: 1px solid #555;
-    color: #fff;
-    padding: 6px;
-    cursor: pointer;
-}
-
-#skill-select button.selected {
-    border-color: #0ff;
-    box-shadow: 0 0 10px #0ff;
-}
-
-#ranking-list {
-    margin-top: 10px;
-    font-size: 14px;
-}
-
-
 @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
 @keyframes warning { 0% { box-shadow: inset 0 0 0 rgba(255,0,0,0); transform: scale(1); } 50% { box-shadow: inset 0 0 100px rgba(255,0,0,0.6); transform: scale(1.02); } 100% { box-shadow: inset 0 0 0 rgba(255,0,0,0); transform: scale(1); } }
 @keyframes glitch-anim {
