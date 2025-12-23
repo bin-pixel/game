@@ -8,21 +8,32 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+    <script>
+        (function() {
+            const player = localStorage.getItem('playerName');
+            if (!player) {
+                // 이름이 없으면 메인으로 이동 (필요 없으면 이 스크립트 삭제 가능)
+                // alert("잘못된 접근입니다."); // 귀찮으면 주석 처리
+                window.location.replace('main.html'); 
+            }
+        })();
+    </script>
+
     <style>
-        /* === 게임 오버 화면 스타일 (수정됨) === */
+        /* === 게임 오버 화면 (수정됨: 배경을 검게 덮어서 뒤가 안 비치게 함) === */
         #game-over-screen {
             display: none; /* 평소엔 숨김 */
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
             
-            /* 핵심 수정: 배경을 불투명한 검은색으로 설정해 뒤에 겹친 글씨를 가림 */
+            /* 배경: 불투명한 검은색 (중요) */
             background-color: #000000; 
             
             flex-direction: column;
             align-items: center; justify-content: center;
-            z-index: 9999; /* 제일 위에 뜨도록 */
-            pointer-events: auto; /* 클릭 가능하도록 강제 설정 */
+            z-index: 9999; /* UI 레이어보다 위에 */
+            pointer-events: auto; /* 클릭 가능 */
         }
 
         .go-title {
@@ -41,7 +52,6 @@
             margin-bottom: 50px;
         }
         
-        /* 버튼 디자인 */
         .go-btn {
             width: 250px;
             padding: 15px;
@@ -56,20 +66,12 @@
             transition: all 0.2s;
             text-transform: uppercase;
         }
-
         .go-btn:hover { background: #333; transform: scale(1.05); }
         .go-btn:active { transform: scale(0.95); }
 
         .btn-restart { border-color: #fff; color: #fff; }
         .btn-rank { border-color: #0f0; color: #0f0; }
-        .btn-rank:hover { background: rgba(0, 255, 0, 0.2); }
         .btn-main { border-color: #f00; color: #f00; }
-        .btn-main:hover { background: rgba(255, 0, 0, 0.2); }
-
-        /* === 스킬 UI 제거 요청 반영 === */
-        /* 만약 JS에서 강제로 띄우더라도 CSS로 숨김 처리 */
-        #skill-hud { display: none !important; }
-
     </style>
 </head>
 <body>
@@ -96,6 +98,8 @@
                 Patterns: <ul id="d-patterns" style="padding-left:15px; margin:0;"></ul>
             </div>
 
+            <div id="side-panel"></div>
+
             <div id="pause-overlay">
                 <div class="neon-text" style="font-size: 60px;">PAUSED</div>
                 <div style="color: #aaa; margin-top: 20px;">Press [S] to Resume</div>
@@ -116,21 +120,19 @@
     <script src="index.js"></script>
 
     <script>
-        // 게임 오버 화면이 뜰 때 UI들을 숨겨주는 헬퍼 함수
         function showGameOverScreen(finalScore) {
             const screen = document.getElementById('game-over-screen');
             const uiLayer = document.getElementById('ui-layer');
             const scoreText = document.getElementById('go-score');
 
-            // 점수 업데이트
             if(scoreText) scoreText.innerText = "Final Score: " + finalScore;
-
-            // UI 숨기고 게임오버 화면 보이기
-            if(uiLayer) uiLayer.style.display = 'none'; // 뒤에 있는 체력바/점수 숨김
+            
+            // UI 숨기고 (뒷배경 깔끔하게)
+            if(uiLayer) uiLayer.style.display = 'none';
+            // 게임오버 화면 띄우기
             if(screen) screen.style.display = 'flex';
         }
 
-        // 게임 리셋 시 다시 UI 보이기
         function hideGameOverScreen() {
             const screen = document.getElementById('game-over-screen');
             const uiLayer = document.getElementById('ui-layer');
@@ -139,12 +141,12 @@
             if(uiLayer) uiLayer.style.display = 'block';
         }
 
-        // 기존 resetGame 함수가 있다면 감싸서 UI 복구 기능 추가
+        // resetGame 함수 덮어쓰기 (안전장치)
         const originalReset = window.resetGame;
         window.resetGame = function() {
             hideGameOverScreen();
             if(typeof originalReset === 'function') originalReset();
-            else location.reload(); // 함수 없으면 새로고침
+            else location.reload();
         };
     </script>
 </body>
