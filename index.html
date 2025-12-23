@@ -8,56 +8,135 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-    
+    <script>
+        (function() {
+            if (!localStorage.getItem('playerName')) {
+                window.location.replace('start.html'); 
+            }
+        })();
+    </script>
 
     <style>
-        /* === 게임 오버 화면 (검은 배경, 맨 위에 뜨게 설정) === */
-        #game-over-screen {
-            display: none; /* 평소엔 숨김 */
+        /* === 1. 보스 체력바 (화면 맨 위 중앙) === */
+        #boss-hp-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%); /* 정확히 중앙 정렬 */
+            width: 500px;
+            height: 30px;
+            border: 3px solid #fff;
+            background-color: #222; /* 빈 게이지 색 */
+            z-index: 100;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+        }
+
+        #boss-hp-bar {
+            width: 100%; /* 스크립트로 조절됨 */
+            height: 100%;
+            background-color: #f00; /* 빨간색 */
+            transition: width 0.1s linear; /* 부드럽게 줄어듦 */
+        }
+
+        #boss-hp-text {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background-color: #000000; /* 완전 검은색 */
+            line-height: 30px; /* 세로 중앙 정렬 */
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        /* === 2. 우측 스킬 UI (세로 배치) === */
+        #right-skill-panel {
+            position: absolute;
+            top: 200px;
+            right: 20px; /* 오른쪽 끝 */
+            display: flex;
+            flex-direction: column; /* 세로로 쌓기 */
+            gap: 15px;
+            z-index: 90;
+        }
+
+        .skill-box {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #666;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: sans-serif;
+            position: relative;
+            box-shadow: 0 0 5px #000;
+        }
+
+        .skill-key {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffeb3b; /* 노란색 키 이름 */
+            border-bottom: 1px solid #444;
+            width: 100%;
+            text-align: center;
+            padding-bottom: 3px;
+            margin-bottom: 3px;
+        }
+
+        .skill-icon {
+            font-size: 20px;
+        }
+
+        /* 쿨타임 덮개 (어두운 막) */
+        .cd-overlay {
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 100%; height: 0%; /* 100%면 꽉 참 */
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 8px;
+            transition: height 0.1s linear;
+        }
+
+        /* === 3. 좌측 정보 UI === */
+        .hud-text {
+            position: absolute;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 20px;
+            z-index: 90;
+            text-shadow: 1px 1px 2px #000;
+        }
+        #score-box { top: 70px; left: 20px; }
+        #hp-box { top: 100px; left: 20px; color: #f55; }
+        #player-info { top: 130px; left: 20px; color: #aaa; font-size: 14px; }
+
+        /* === 4. 게임 오버 화면 === */
+        #game-over-screen {
+            display: none;
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); /* 거의 검은색 */
             flex-direction: column;
             align-items: center; justify-content: center;
-            z-index: 10000; /* 제일 위에 */
-        }
-
-        .go-title {
-            color: red;
-            font-size: 60px;
-            font-family: 'Courier New', Courier, monospace;
-            text-shadow: 0 0 20px red;
-            margin-bottom: 20px;
-            font-weight: bold;
-        }
-
-        .go-score {
-            color: white;
-            font-size: 30px;
-            font-family: 'Courier New', Courier, monospace;
-            margin-bottom: 50px;
+            z-index: 9999;
         }
         
         .go-btn {
-            width: 260px;
-            padding: 15px;
-            margin: 10px;
-            font-size: 18px;
-            font-weight: bold;
+            width: 250px; padding: 15px; margin: 10px;
             font-family: 'Courier New', Courier, monospace;
-            cursor: pointer;
-            background: transparent;
-            color: white;
-            border: 2px solid white;
-            transition: all 0.2s;
-            text-transform: uppercase;
+            font-weight: bold; cursor: pointer; font-size: 18px;
+            background: transparent; color: white; border: 2px solid white;
+            transition: 0.2s;
         }
         .go-btn:hover { background: #333; transform: scale(1.05); }
-
-        .btn-restart { border-color: #fff; color: #fff; }
-        .btn-rank { border-color: #0f0; color: #0f0; }
-        .btn-main { border-color: #f00; color: #f00; }
+        .btn-rank { color: #0f0; border-color: #0f0; }
+        .btn-main { color: #f00; border-color: #f00; }
     </style>
 </head>
 <body>
@@ -65,72 +144,88 @@
         <canvas id="c" width="600" height="800"></canvas>
         
         <div id="ui-layer">
+            
             <div id="boss-hp-container">
-                <div id="boss-hp-bar"></div>
-                <div id="boss-hp-text">10000 / 10000</div>
+                <div id="boss-hp-bar"></div> <div id="boss-hp-text">10000 / 10000</div>
             </div>
 
             <div id="score-box" class="hud-text">SCORE: 0</div>
             <div id="hp-box" class="hud-text">♥♥♥♥♥</div>
             <div id="player-info" class="hud-text">PLAYER: ???</div>
-            <div id="msg-box">PHASE 1</div>
-            
-            <div id="pause-overlay">
+            <div id="msg-box" style="display:none;">PHASE 1</div>
+
+            <div id="right-skill-panel">
+                <div class="skill-box" id="skill-z-slot">
+                    <span class="skill-key">Z</span>
+                    <span class="skill-icon" id="skill-z-icon">⚔️</span>
+                    <div id="skill-z-cd" class="cd-overlay"></div>
+                </div>
+                <div class="skill-box" id="skill-x-slot">
+                    <span class="skill-key">X</span>
+                    <span class="skill-icon" id="skill-x-icon">⚡</span>
+                    <div id="skill-x-cd" class="cd-overlay"></div>
+                </div>
+                <div class="skill-box" id="skill-space-slot">
+                    <span class="skill-key">Spc</span>
+                    <span class="skill-icon">🛡️</span>
+                    <div id="skill-space-cd" class="cd-overlay"></div>
+                </div>
+            </div>
+
+            <div id="pause-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center; color:white;">
                 <div class="neon-text" style="font-size: 60px;">PAUSED</div>
                 <div style="color: #aaa; margin-top: 20px;">Press [S] to Resume</div>
             </div>
-        </div>
 
-        <div id="game-over-screen">
-            <div class="go-title">GAME OVER</div>
-            <div id="go-score" class="go-score">Final Score: 0</div>
-            
-            <button class="go-btn btn-restart" onclick="resetGame()">다시 하기 (R)</button>
-            <button class="go-btn btn-rank" onclick="goToRanking()">랭킹 보기</button>
-            <button class="go-btn btn-main" onclick="goToStartPage()">메인으로</button>
-        </div>
+            <div id="game-over-screen">
+                <h1 id="go-title" style="color: red; font-size: 60px; text-shadow: 0 0 20px red; margin-bottom: 20px;">GAME OVER</h1>
+                <h2 id="go-score" style="color: white; font-size: 30px; margin-bottom: 50px;">Final Score: 0</h2>
+                
+                <button class="go-btn" onclick="resetGame()">다시 하기 (R)</button>
+                <button class="go-btn btn-rank" onclick="goToRanking()">랭킹 보기</button>
+                <button class="go-btn btn-main" onclick="goToMain()">메인으로</button>
+            </div>
 
+        </div>
     </div>
 
     <script src="index.js"></script>
 
     <script>
-        // 이 함수가 호출되면 검은 화면이 뜹니다.
-        function showGameOverScreen(finalScore) {
-            const screen = document.getElementById('game-over-screen');
-            const uiLayer = document.getElementById('ui-layer');
-            const scoreText = document.getElementById('go-score');
+        // 플레이어 이름 표시
+        const pName = localStorage.getItem('playerName') || "Player";
+        document.getElementById('player-info').innerText = "PLAYER: " + pName;
 
-            // 점수 표시
-            if(scoreText) scoreText.innerText = "Final Score: " + finalScore;
-            
-            // UI 숨기고 게임오버 화면 켜기
-            if(uiLayer) uiLayer.style.display = 'none';
-            if(screen) screen.style.display = 'flex';
-        }
-
-        // 재시작 시 화면 복구
-        function hideGameOverScreen() {
-            const screen = document.getElementById('game-over-screen');
-            const uiLayer = document.getElementById('ui-layer');
-
-            if(screen) screen.style.display = 'none';
-            if(uiLayer) uiLayer.style.display = 'block';
-        }
-
-        // 메인으로 가기 (이름 지우고 이동)
-        function goToStartPage() {
+        // 메인으로 이동 (start.html)
+        function goToMain() {
             localStorage.removeItem('playerName');
             window.location.href = 'start.html';
         }
 
-        // 랭킹 페이지 (없으면 알림)
+        // 랭킹 (준비중)
         function goToRanking() {
-            alert("랭킹 페이지 준비 중!"); 
-            // 나중에 window.location.href = 'ranking.html'; 로 변경
+            alert("랭킹 시스템은 아직 준비 중입니다!");
         }
 
-        // resetGame 안전장치
+        // 게임 오버 화면 띄우기 (index.js에서 호출됨)
+        function showGameOverScreen(finalScore) {
+            const screen = document.getElementById('game-over-screen');
+            const uiLayer = document.getElementById('ui-layer'); // 전체 UI를 가릴지 말지 결정
+            const scoreText = document.getElementById('go-score');
+
+            if(scoreText) scoreText.innerText = "Final Score: " + finalScore;
+            
+            // UI 레이어는 그대로 두고, 그 위에 게임오버 화면을 덮습니다.
+            if(screen) screen.style.display = 'flex';
+        }
+
+        // 화면 숨기기 (재시작용)
+        function hideGameOverScreen() {
+            const screen = document.getElementById('game-over-screen');
+            if(screen) screen.style.display = 'none';
+        }
+
+        // resetGame 함수 오버라이딩 (안전장치)
         const originalReset = window.resetGame;
         window.resetGame = function() {
             hideGameOverScreen();
