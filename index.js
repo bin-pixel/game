@@ -713,7 +713,7 @@ function update() {
     if (player.slowTimer > 0) player.slowTimer--;
     
     player.regenTimer++;
-    if (player.regenTimer > 430) { 
+    if (player.regenTimer > 300) { 
         player.regenTimer = 0;
         if (player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + 0.5);
     }
