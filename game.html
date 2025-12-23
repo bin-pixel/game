@@ -2,40 +2,56 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>NEON BULLET HELL - BATTLE</title>
+    <title>BOSS RUSH: IN-GAME</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="game-body">
-    <div id="skill-overlay" class="overlay">
-        <h2 style="color: #f0f; text-shadow: 0 0 10px #f0f;">SELECT 2 MODULES</h2>
-        <p style="color: #aaa; font-size: 14px;">Z, X: Selected Skills / Space: Parry(Fixed)</p>
-        <div id="skill-grid"></div>
-        <button id="launch-btn" class="neon-btn" disabled>LAUNCH SYSTEM</button>
-    </div>
+    <div id="game-wrapper">
+        <div id="game-screen">
+            <div class="boss-hp-container">
+                <div id="boss-hp-bar"></div>
+                <div id="boss-hp-text">10000 / 10000</div>
+            </div>
+            <canvas id="c" width="600" height="800"></canvas>
+            <div id="ui-layer">
+                <div id="score-box">SCORE: 0</div>
+                <div id="hp-box">♥♥♥♥♥</div>
+                <div id="msg-box"></div>
+                <div id="admin-msg" style="display:none; color:red; font-weight:bold;">GOD MODE ON</div>
+            </div>
+        </div>
 
-    <div id="admin-modal" class="overlay hidden">
-        <h2 style="color:red; text-shadow: 0 0 15px red;">ADMIN ACCESS</h2>
-        <input type="password" id="admin-pw" class="retro-input" style="border-color:red; color:red;" placeholder="PASSWORD">
-        <p style="margin-top:15px; font-size:12px; color: #666;">WARNING: RANKING WILL BE DISABLED</p>
-    </div>
+        <div id="side-panel">
+            <div class="skill-title">SKILLS</div>
+            <div id="skill-list">
+                <div class="skill" id="skill-12" style="border-color: #fff; color: #fff;"><div class="key">SPC</div><div class="name">패링</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-1"><div class="key">1</div><div class="name">무적</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-2"><div class="key">2</div><div class="name">가속</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-3"><div class="key">3</div><div class="name">반사</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-4"><div class="key">4</div><div class="name">방패</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-5"><div class="key">5</div><div class="name">레일건</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-7"><div class="key">7</div><div class="name">동결</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-10"><div class="key">0</div><div class="name">중력장</div><div class="cooldown"></div></div>
+                <div class="skill special" id="skill-11"><div class="key">-</div><div class="name">리콜</div><div class="cooldown"></div></div>
+            </div>
+        </div>
 
-    <div id="ui-layer">
-        <div id="boss-hp-container"><div id="boss-hp-bar"></div></div>
-        <div id="score-box">SCORE: 0</div>
-        <div id="hp-box">♥♥♥♥♥</div>
-        <div id="msg-box" class="hidden">READY</div>
-        
-        <div id="skill-hud">
-            <div class="skill-icon" id="hud-z"><span class="key-hint">Z</span><div class="cd-bar"></div></div>
-            <div class="skill-icon" id="hud-x"><span class="key-hint">X</span><div class="cd-bar"></div></div>
-            <div class="skill-icon" id="hud-space"><span class="key-hint">SPC</span><div class="cd-bar"></div></div>
+        <div id="debug-panel" style="display:none;">
+            <div class="debug-title">ADMIN CONTROL</div>
+            <div class="phase-buttons">
+                <button id="p1-btn">P1</button>
+                <button id="p2-btn">P2</button>
+                <button id="p3-btn">P3</button>
+                <button id="p4-btn">P4</button>
+            </div>
+            <div id="debug-info">
+                <p>FPS: <span id="d-fps">60</span></p>
+                <p>HP: <span id="d-hp">10000</span></p>
+                <p>PHASE: <span id="d-phase">1</span></p>
+                <p>PATTERNS: <span id="d-patterns">0</span></p>
+            </div>
         </div>
     </div>
-
-    <canvas id="c" width="600" height="800"></canvas>
-    
-    <div id="admin-status">GOD MODE ACTIVE (NO RECORDING)</div>
-
     <script type="module" src="game.js"></script>
 </body>
 </html>
