@@ -7,17 +7,6 @@
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <script>
-        (function() {
-            const player = localStorage.getItem('playerName');
-            if (!player) {
-                // 이름 데이터가 없으면 시작 화면(start.html)으로 보냄
-                window.location.replace('start.html'); 
-            }
-        })();
-    </script>
-
     <style>
         /* === 게임 오버 화면 (검은 배경으로 덮기) === */
         #game-over-screen {
@@ -119,6 +108,14 @@
     <script src="index.js"></script>
 
     <script>
+        // 메인으로(start.html) 이동 함수
+        function goToStartPage() {
+            // 이름 정보 삭제 (로그아웃 효과)
+            localStorage.removeItem('playerName');
+            // start.html로 이동
+            window.location.href = 'start.html';
+        }
+
         // 게임 오버 화면 표시
         function showGameOverScreen(finalScore) {
             const screen = document.getElementById('game-over-screen');
