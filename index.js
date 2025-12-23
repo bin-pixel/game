@@ -1035,12 +1035,13 @@ function update() {
 function draw() {
     ctx.clearRect(0,0,600,800);
     
-    // 배경
+    // 배경 (별 그리기)
     ctx.fillStyle = '#555';
     stars.forEach(s => {
         ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
     });
 
+    // 점수 라인 (V키 디버그용)
     if (showScoreLines) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1; ctx.font = "10px Arial"; ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
@@ -1054,16 +1055,18 @@ function draw() {
 
     if (state === 'play' || state === 'over' || state === 'countdown') {
         
-        // 잔상
+        // 잔상 (스킬 2)
         afterimages.forEach(img => {
             ctx.save(); ctx.globalAlpha = img.alpha;
             ctx.fillStyle = 'cyan'; ctx.fillRect(img.x-15, img.y-15, 30, 30);
             ctx.restore(); 
         });
 
-        // 탄환
+        // 탄환 그리기
         bullets.forEach(b => {
             ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+            
+            // 경고 시간 (투명하게 표시)
             if (b.warnTime > 0 && b.timer < b.warnTime) {
                 ctx.globalAlpha = 0.2; ctx.fillStyle = b.color;
                 if(b.isLaser) { ctx.fillRect(-1000, -b.h/2, b.w+1000, b.h); } 
@@ -1073,11 +1076,13 @@ function draw() {
                 }
                 ctx.globalAlpha = 1.0;
             } else {
+                // 실체화된 탄환
                 ctx.fillStyle = b.color;
                 if(b.isLaser) {
                     let timeLeft = (b.warnTime + b.activeTime) - b.timer;
                     let currentH = b.h;
                     let appearTime = b.timer - b.warnTime;
+                    // 레이저 등장/퇴장 연출
                     if (appearTime < 5) currentH = b.h * (appearTime/5);
                     if (timeLeft < 10) currentH = b.h * (timeLeft/10);
                     
@@ -1098,30 +1103,49 @@ function draw() {
             ctx.restore();
         });
 
-        // 보스
+        // 보스 그리기
         if (boss.hp > 0) {
             let color = getPhaseColor();
             ctx.fillStyle = color; 
             ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
         }
 
-        // 플레이어
+        // 플레이어 그리기
         if (state !== 'over') {
+            // 무적 시간 깜빡임 처리
             ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : (player.slowTimer > 0 ? '#555' : 'red'));
             ctx.fillRect(player.x-15, player.y-15, 30, 30);
 
+            // 히트박스 (하얀 점)
             if (!(player.invul>0 && Math.floor(frame/4)%2===0)) {
                 ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,player.hitboxSize,0,Math.PI*2); ctx.fill();
             }
 
+            // [NEW] 무적 스킬 (1번) 사용 시 황금색 오라 효과
+            if (skills[1].active) {
+                ctx.save();
+                let pulse = 0.5 + Math.sin(frame * 0.2) * 0.3; // 깜빡거리는 효과
+                ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`; // 황금색
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 25, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillStyle = `rgba(255, 215, 0, 0.2)`;
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 패링 스킬 (12번) 사용 시 범위 표시
             if (skills[12].active) {
                 ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`;
                 ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(player.x, player.y, 36, -Math.PI, 0); ctx.stroke();
             }
+            
+            // 리와인드 중일 때 색상 변경
             if (isRewinding) { ctx.fillStyle = '#0f0'; ctx.fillRect(player.x-15, player.y-15, 30, 30); }
         }
 
-        // 오브젝트
+        // 오브젝트 그리기 (방패, 중력장 등)
         if (shieldObj) {
             ctx.save(); ctx.translate(shieldObj.x, shieldObj.y);
             ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; 
@@ -1136,12 +1160,13 @@ function draw() {
             ctx.fillStyle = 'rgba(100,0,255,0.1)'; ctx.fill();
             ctx.restore();
         }
+        // 패링 범위 시각화 (한 번 더 강조)
         if (skills[12].active) {
             ctx.save(); ctx.strokeStyle = 'white'; ctx.lineWidth = 4;
             ctx.beginPath(); ctx.arc(player.x, player.y - 30, 40, Math.PI, 0); ctx.stroke(); ctx.restore();
         }
 
-        // 이펙트
+        // 이펙트 (폭발, 파티클, 텍스트)
         explosions.forEach(e => {
             ctx.save(); ctx.translate(e.x, e.y);
             ctx.strokeStyle = 'orange'; ctx.lineWidth = 3;
@@ -1157,7 +1182,7 @@ function draw() {
             ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Arial`; ctx.fillText(t.text, t.x, t.y);
         });
 
-        // 일시정지 화면
+        // 일시정지 오버레이
         if (isPaused) {
             ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,600,800);
             if(pauseOverlay) pauseOverlay.style.display = 'flex';
@@ -1166,6 +1191,7 @@ function draw() {
         }
     }
 
+    // 게임 오버 / 클리어 화면
     if (state === 'over' || state === 'clear') {
         ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,600,800);
         ctx.fillStyle = '#fff'; ctx.font = '50px Courier'; ctx.textAlign='center';
