@@ -1,103 +1,54 @@
-body {
-    margin: 0; background: #000; height: 100vh;
-    display: flex; justify-content: center; align-items: center;
-    font-family: 'Courier New', monospace; overflow: hidden;
-}
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
-#game-wrapper {
-    display: flex; gap: 20px; align-items: flex-start;
-}
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; background: #000; color: #fff; font-family: 'Orbitron', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
 
-#game-screen {
-    position: relative; width: 600px; height: 800px;
-    box-shadow: 0 0 50px #111; overflow: hidden; background: #050505;
-    border: 1px solid #333;
-}
-canvas { display: block; background: transparent; }
+/* 공통 UI */
+.hidden { display: none !important; }
+.retro-input { background: rgba(0, 255, 255, 0.05); border: 2px solid #0ff; color: #0ff; padding: 15px; font-size: 1.2rem; font-family: 'Orbitron'; text-align: center; outline: none; transition: 0.3s; width: 300px; }
+.retro-input:focus { box-shadow: 0 0 20px #0ff; }
+.neon-btn { margin-top: 20px; padding: 15px 40px; border: 2px solid #f0f; background: none; color: #f0f; font-family: 'Orbitron'; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; letter-spacing: 2px; }
+.neon-btn:hover:not(:disabled) { background: #f0f; color: #000; box-shadow: 0 0 30px #f0f; }
+.neon-btn:disabled { border-color: #444; color: #444; cursor: not-allowed; }
 
-/* UI */
-.boss-hp-container { 
-    position: absolute; top: 0; left: 0; width: 100%; height: 16px; 
-    background: #222; z-index: 5; border-bottom: 1px solid #444;
-}
-#boss-hp-bar { 
-    width: 100%; height: 100%; background: #00ccff; 
-    transition: width 0.1s linear, background 0.3s; 
-    box-shadow: 0 0 10px currentColor; 
-}
-#boss-hp-text {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    display: flex; justify-content: center; align-items: center;
-    color: #fff; font-size: 11px; font-weight: bold;
-    text-shadow: 1px 1px 0 #000; letter-spacing: 1px;
-}
+/* 로비 디자인 */
+.lobby-container { text-align: center; width: 100%; max-width: 600px; }
+.glitch-text { font-size: 3.5rem; text-shadow: 3px 3px #f0f, -3px -3px #0ff; margin-bottom: 40px; animation: glitch 1s infinite; }
+#ranking-section { margin-top: 50px; background: rgba(10, 10, 10, 0.8); border: 1px solid #333; padding: 20px; }
+.rank-title { color: #0ff; font-size: 1.2rem; margin-bottom: 15px; border-bottom: 1px solid #0ff; padding-bottom: 5px; }
+.rank-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #222; font-size: 0.9rem; }
+.rank-item:last-child { border-bottom: none; }
 
-#ui-layer { position: absolute; top: 25px; left: 15px; width: 570px; pointer-events: none; z-index: 10; }
-#score-box { color: #fff; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 0 #000; }
-#hp-box { color: #ff3333; font-size: 24px; margin-top: 5px; text-shadow: 2px 2px 0 #000; letter-spacing: 2px; }
-#admin-msg { color: #ffd700; font-size: 18px; font-weight: bold; margin-top: 5px; display: none; text-shadow: 0 0 10px orange; }
+/* 게임 레이아웃 */
+#c { background: #000; box-shadow: 0 0 50px rgba(0, 255, 255, 0.1); border: 1px solid #222; }
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
 
-#msg-box {
-    position: absolute; top: 35%; width: 100%; text-align: center;
-    font-size: 50px; font-weight: 900; color: #fff;
-    text-shadow: 0 0 20px #f00, 3px 3px 0 #000; display: none; z-index: 20; letter-spacing: -2px;
+/* 스킬 선택 그리드 */
+#skill-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 30px 0; }
+.skill-card { border: 1px solid #333; background: #0a0a0a; padding: 15px; cursor: pointer; text-align: center; width: 140px; transition: 0.2s; }
+.skill-card:hover { border-color: #0ff; background: rgba(0,255,255,0.05); }
+.skill-card.selected { border-color: #f0f; background: rgba(255,0,255,0.1); box-shadow: 0 0 15px #f0f; }
+.skill-card .name { font-weight: bold; color: #fff; margin-bottom: 5px; }
+.skill-card .desc { font-size: 0.7rem; color: #888; line-height: 1.2; }
+
+/* 인게임 UI */
+#ui-layer { position: absolute; width: 600px; height: 800px; pointer-events: none; z-index: 10; }
+#boss-hp-container { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); width: 450px; height: 12px; border: 1px solid #fff; background: #000; }
+#boss-hp-bar { width: 100%; height: 100%; background: #0ff; box-shadow: 0 0 10px #0ff; transition: width 0.2s; }
+#score-box { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); font-size: 18px; color: #fff; text-shadow: 0 0 5px #0ff; }
+#hp-box { position: absolute; bottom: 30px; left: 30px; color: #f00; font-size: 24px; letter-spacing: 5px; }
+#skill-hud { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 12px; }
+.skill-icon { width: 45px; height: 45px; border: 2px solid #444; background: rgba(0,0,0,0.8); position: relative; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+.cd-bar { position: absolute; bottom: 0; width: 100%; height: 0%; background: rgba(255,0,0,0.6); }
+.key-hint { position: absolute; top: -18px; font-size: 10px; color: #0ff; font-weight: bold; }
+#admin-status { position: absolute; bottom: 10px; right: 10px; color: red; font-size: 12px; font-weight: bold; display: none; }
+
+/* 애니메이션 */
+@keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
 }
-
-/* 스킬바 */
-#side-panel {
-    display: flex; flex-direction: column;
-    background: #111; border: 1px solid #333; padding: 10px;
-    border-radius: 8px; color: #fff; width: 60px;
-    box-shadow: 5px 5px 15px #000;
-}
-.skill-title { font-size: 11px; text-align: center; margin-bottom: 10px; color: #888; font-weight: bold; letter-spacing: 1px; }
-#skill-list { display: flex; flex-direction: column; gap: 8px; }
-
-.skill {
-    position: relative; width: 50px; height: 50px;
-    background: rgba(40,40,40,0.9); border: 1px solid #555;
-    border-radius: 6px; color: #fff; display: flex;
-    justify-content: center; align-items: center;
-    font-weight: bold; cursor: pointer; overflow: hidden;
-    transition: transform 0.1s;
-}
-.skill:active { transform: scale(0.95); }
-.skill.special { border-color: #a0f; color: #e0f; box-shadow: 0 0 5px #a0f; }
-.skill .key { position: absolute; top: 3px; left: 5px; font-size: 10px; color: #aaa; }
-.skill .name { font-size: 10px; margin-top: 12px; text-align: center; line-height: 1.1; }
-.skill.active { border-color: #0ff; box-shadow: 0 0 15px #0ff; background: #003333; }
-.skill .cooldown { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(0,0,0,0.7); transition: height 0.1s linear; }
-
-/* 디버그 패널 */
-#debug-panel {
-    display: flex; flex-direction: column;
-    background: #111; border: 1px solid #333; padding: 10px;
-    border-radius: 8px; color: #fff; width: 200px;
-    box-shadow: 5px 5px 15px #000; display: none;
-}
-.debug-title { font-size: 14px; font-weight: bold; color: #ffd700; text-align: center; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px; }
-.phase-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; }
-.phase-buttons button { background: #333; color: #fff; border: 1px solid #555; padding: 5px; cursor: pointer; }
-.phase-buttons button:hover { background: #555; }
-#debug-info p { margin: 5px 0; font-size: 12px; color: #ccc; }
-#debug-info span { color: #fff; font-weight: bold; }
-#d-patterns { margin: 5px 0 0 0; padding-left: 15px; font-size: 11px; color: #888; list-style-type: square; }
-
-/* Effects */
-.shake-effect { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
-.glitch-effect { animation: glitch-anim 0.2s infinite; }
-.invert-effect { filter: invert(100%); }
-.rewind-effect { animation: rewind-noise 1s infinite linear; }
-.warning-pulse { animation: warning 1s infinite; }
-
-@keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
-@keyframes warning { 0% { box-shadow: inset 0 0 0 rgba(255,0,0,0); transform: scale(1); } 50% { box-shadow: inset 0 0 100px rgba(255,0,0,0.6); transform: scale(1.02); } 100% { box-shadow: inset 0 0 0 rgba(255,0,0,0); transform: scale(1); } }
-@keyframes glitch-anim {
-    0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 2px); }
-    20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, -2px); }
-    40% { clip-path: inset(10% 0 50% 0); transform: translate(-2px, -2px); }
-    60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, 2px); }
-    80% { clip-path: inset(30% 0 40% 0); transform: translate(2px, -2px); }
-    100% { clip-path: inset(10% 0 60% 0); transform: translate(-2px, 2px); }
-}
-@keyframes rewind-noise { 0% { transform: translate(0,0); filter: grayscale(100%) contrast(1.5); } 10% { transform: translate(-2px, 2px); } 100% { transform: translate(0,0); filter: sepia(100%); } }
