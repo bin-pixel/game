@@ -47,23 +47,71 @@
                 <div class="info-desc" id="info-desc">스킬에 마우스를 올려보세요.<br><br>클릭하여 선택합니다.<br>첫 번째 클릭: [Z] 키<br>두 번째 클릭: [X] 키</div>
             </div>
             <div>
-                <div style="margin-bottom:10px; font-size:14px; color:#888;">* 패링(Space)은 기본 장착됩니다.</div>
+                <div id="skill-note" style="margin-bottom:10px; font-size:13px; color:#888; min-height: 40px;">
+                    * 패링(Space)은 기본 장착됩니다.
+                </div>
                 <button class="start-btn" onclick="startGame()">GAME START</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 스킬 데이터 (설명 포함)
+        // 스킬 데이터 (설명 + Note 추가됨 + 패링 추가됨)
         const skillsData = [
-            { id: 1, name: "무적 (Invul)", desc: "3초간 모든 공격을 무시합니다. 위급할 때 사용하세요. (쿨타임: 10초)" },
-            { id: 2, name: "가속 (TimeWarp)", desc: "5초간 시간을 느리게 만듭니다. 정밀한 회피가 가능해집니다. (쿨타임: 18초)" },
-            { id: 3, name: "반사 (Reflect)", desc: "주변의 탄환을 반사하여 적을 공격하는 유도탄으로 바꿉니다. (쿨타임: 27초)" },
-            { id: 4, name: "방패 (Shield)", desc: "전방에 탄환을 막을수록 확장되는 방벽을 설치합니다 (쿨타임: 25초)" },
-            { id: 5, name: "레일건 (Railgun)", desc: "전방으로 강력한 관통 레이저를 전면으로 발사합니다 (쿨타임: 11초)" },
-            { id: 7, name: "정지 (Stop)", desc: "게임의 시간을 4초간 멈춥니다. (쿨타임: 30초)" },
-            { id: 10, name: "블랙홀 (Blackhole)", desc: "주변 탄막을 빨아들이는 블랙홀을 생성한 뒤 블랙홀이 빨아들인 만큼 위력을 지닌 탄환을 쏩니다 (쿨타임: 24초)" },
-            { id: 11, name: "리콜 (Recall)", desc: "시간을 5초 전으로 되돌립니다. (쿨타임: 15초)" }
+            { 
+                id: 1, 
+                name: "무적 (Invul)", 
+                desc: "3초간 모든 공격을 무시합니다. (쿨타임: 12초)", 
+                note: "* 사용 도중에 움직임이 느려짐" 
+            },
+            { 
+                id: 2, 
+                name: "가속 (TimeWarp)", 
+                desc: "5초간 시간을 느리게 만듭니다. 정밀한 회피가 가능해집니다. (쿨타임: 18초)", 
+                note: "* 가속 상태에선 공격이 불가, 보스의 탄환의 판정을 무시하는 것은 아님" 
+            },
+            { 
+                id: 3, 
+                name: "반사 (Reflect)", 
+                desc: "주변의 탄환을 반사하여 적을 공격하는 유도탄으로 바꿉니다. (쿨타임: 27초)", 
+                note: "* 광선 공격은 반사 불가" 
+            },
+            { 
+                id: 4, 
+                name: "방패 (Shield)", 
+                desc: "전방에 탄환을 막을수록 확장되는 방벽을 설치합니다 (쿨타임: 25초)", 
+                note: "* 광선 공격은 방어 불가" 
+            },
+            { 
+                id: 5, 
+                name: "레일건 (Railgun)", 
+                desc: "전방으로 강력한 관통 레이저를 전면으로 발사합니다 (쿨타임: 11초)", 
+                note: "* 전방으로 쏜다는 점을 주의" 
+            },
+            { 
+                id: 7, 
+                name: "정지 (Stop)", 
+                desc: "게임의 시간을 4초간 멈춥니다. (쿨타임: 30초)", 
+                note: "* 캐릭터의 탄환을 중첩하여 발사가 가능" 
+            },
+            { 
+                id: 10, 
+                name: "블랙홀 (Blackhole)", 
+                desc: "주변 탄막을 빨아들이고 빨아들인 만큼의 위력을 지닌 대형 탄환을 쏘는 블랙홀을 생성합니다. (쿨타임: 24초)", 
+                note: "* 위력 증가의 상하선이 존재함" 
+            },
+            { 
+                id: 11, 
+                name: "리콜 (Recall)", 
+                desc: "시간을 5초 전으로 되돌립니다. (쿨타임: 15초)", 
+                note: "* 점수도 되돌리는 점을 주의." 
+            },
+            { 
+                id: 12, 
+                name: "패링 (Parrying)", 
+                desc: "적의 탄막을 쳐내어 무효화합니다. (쿨타임: 3초)", 
+                note: "* 스페이스바를 눌러 발동합니다. (기본 장착)" 
+            }
         ];
 
         let selectedSkills = []; // [id1, id2]
@@ -71,66 +119,9 @@
         const grid = document.getElementById('skill-list');
         const iName = document.getElementById('info-name');
         const iDesc = document.getElementById('info-desc');
+        const iNote = document.getElementById('skill-note'); // Note 엘리먼트 가져오기
 
         skillsData.forEach(s => {
             const el = document.createElement('div');
             el.className = 'skill-card';
-            el.innerHTML = `<div style="font-size:30px; margin-bottom:10px;">⚡</div><div>${s.name}</div><div class="key-badge"></div>`;
-            
-            // 마우스 오버 시 설명
-            el.onmouseenter = () => {
-                iName.innerText = s.name;
-                iDesc.innerText = s.desc;
-            };
-
-            // 클릭 시 선택/해제
-            el.onclick = () => {
-                const idx = selectedSkills.indexOf(s.id);
-                if (idx > -1) {
-                    // 이미 선택됨 -> 해제
-                    selectedSkills.splice(idx, 1);
-                } else {
-                    // 선택 안됨 -> 추가 (최대 2개)
-                    if (selectedSkills.length < 2) {
-                        selectedSkills.push(s.id);
-                    } else {
-                        // 꽉 찼으면 첫번째꺼 빼고 넣기 (교체)
-                        selectedSkills.shift();
-                        selectedSkills.push(s.id);
-                    }
-                }
-                renderSelection();
-            };
-            
-            // ID 저장
-            el.dataset.id = s.id;
-            grid.appendChild(el);
-        });
-
-        function renderSelection() {
-            const cards = document.querySelectorAll('.skill-card');
-            cards.forEach(c => {
-                const sid = parseInt(c.dataset.id);
-                const sIdx = selectedSkills.indexOf(sid);
-                const badge = c.querySelector('.key-badge');
-                
-                if (sIdx > -1) {
-                    c.classList.add('selected');
-                    badge.style.display = 'flex';
-                    badge.innerText = sIdx === 0 ? 'Z' : 'X';
-                    badge.style.background = sIdx === 0 ? '#fff' : '#ffd700'; // Z는 흰색, X는 골드
-                } else {
-                    c.classList.remove('selected');
-                    badge.style.display = 'none';
-                }
-            });
-        }
-
-        function startGame() {
-            // 아무것도 선택 안해도 됨. 선택한 것만 저장
-            localStorage.setItem('bossRush_skills', JSON.stringify(selectedSkills));
-            location.href = 'index.html';
-        }
-    </script>
-</body>
-</html>
+            el.innerHTML = `<div style="font-size:
