@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>BOSS RUSH: ARMORY</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { gap: 30px; }
+        .container { display: flex; gap: 30px; width: 900px; }
+        .skill-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; flex: 2;
+        }
+        .skill-card {
+            background: #111; border: 2px solid #444; padding: 15px;
+            border-radius: 8px; cursor: pointer; text-align: center; position: relative;
+        }
+        .skill-card:hover { border-color: #fff; background: #222; }
+        .skill-card.selected { border-color: #0f0; background: #002200; }
+        
+        .key-badge {
+            position: absolute; top: -10px; right: -10px;
+            width: 30px; height: 30px; background: #fff; color: #000;
+            border-radius: 50%; font-weight: bold; display: none;
+            align-items: center; justify-content: center;
+        }
+
+        .info-panel {
+            flex: 1; background: #111; border: 2px solid #0ff; padding: 20px;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .info-title { font-size: 24px; color: #0ff; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 10px; }
+        .info-desc { color: #ccc; line-height: 1.6; font-size: 14px; flex-grow: 1; }
+        
+        .start-btn { width: 100%; padding: 20px; font-size: 24px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="logo neon-text" style="position:absolute; top: 30px;">SELECT 2 SKILLS</div>
+    
+    <div class="container">
+        <div class="skill-grid" id="skill-list">
+            </div>
+
+        <div class="info-panel">
+            <div>
+                <div class="info-title" id="info-name">SKILL INFO</div>
+                <div class="info-desc" id="info-desc">스킬에 마우스를 올려보세요.<br><br>클릭하여 선택합니다.<br>첫 번째 클릭: [Z] 키<br>두 번째 클릭: [X] 키</div>
+            </div>
+            <div>
+                <div style="margin-bottom:10px; font-size:14px; color:#888;">* 패링(Space)은 기본 장착됩니다.</div>
+                <button class="start-btn" onclick="startGame()">GAME START</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 스킬 데이터 (설명 포함)
+        const skillsData = [
+            { id: 1, name: "무적 (Invul)", desc: "3초간 모든 공격을 무시합니다. 위급할 때 사용하세요. (쿨타임: 15초)" },
+            { id: 2, name: "산데 (TimeWarp)", desc: "5초간 시간을 느리게 만듭니다. 정밀한 회피가 가능해집니다. (쿨타임: 20초)" },
+            { id: 3, name: "반사 (Reflect)", desc: "주변의 탄막을 반사하여 적을 공격하는 유도탄으로 바꿉니다. (쿨타임: 10초)" },
+            { id: 4, name: "방패 (Shield)", desc: "전방에 거대한 방패를 설치하여 탄막을 막아냅니다. (쿨타임: 15초)" },
+            { id: 5, name: "레일건 (Railgun)", desc: "전방으로 강력한 관통 레이저를 발사합니다. 보스에게 큰 피해를 줍니다. (쿨타임: 10초)" },
+            { id: 7, name: "동결 (Freeze)", desc: "화면의 모든 적 탄환을 4초간 멈춥니다. (쿨타임: 30초)" },
+            { id: 10, name: "중력장 (Gravity)", desc: "주변 탄막을 빨아들이는 블랙홀을 생성합니다. 빨아들인 만큼 폭발 데미지를 줍니다. (쿨타임: 20초)" },
+            { id: 11, name: "리콜 (Recall)", desc: "시간을 5초 전으로 되돌립니다. 맞기 전으로 돌아갈 수 있습니다. (쿨타임: 7초)" }
+        ];
+
+        let selectedSkills = []; // [id1, id2]
+
+        const grid = document.getElementById('skill-list');
+        const iName = document.getElementById('info-name');
+        const iDesc = document.getElementById('info-desc');
+
+        skillsData.forEach(s => {
+            const el = document.createElement('div');
+            el.className = 'skill-card';
+            el.innerHTML = `<div style="font-size:30px; margin-bottom:10px;">⚡</div><div>${s.name}</div><div class="key-badge"></div>`;
+            
+            // 마우스 오버 시 설명
+            el.onmouseenter = () => {
+                iName.innerText = s.name;
+                iDesc.innerText = s.desc;
+            };
+
+            // 클릭 시 선택/해제
+            el.onclick = () => {
+                const idx = selectedSkills.indexOf(s.id);
+                if (idx > -1) {
+                    // 이미 선택됨 -> 해제
+                    selectedSkills.splice(idx, 1);
+                } else {
+                    // 선택 안됨 -> 추가 (최대 2개)
+                    if (selectedSkills.length < 2) {
+                        selectedSkills.push(s.id);
+                    } else {
+                        // 꽉 찼으면 첫번째꺼 빼고 넣기 (교체)
+                        selectedSkills.shift();
+                        selectedSkills.push(s.id);
+                    }
+                }
+                renderSelection();
+            };
+            
+            // ID 저장
+            el.dataset.id = s.id;
+            grid.appendChild(el);
+        });
+
+        function renderSelection() {
+            const cards = document.querySelectorAll('.skill-card');
+            cards.forEach(c => {
+                const sid = parseInt(c.dataset.id);
+                const sIdx = selectedSkills.indexOf(sid);
+                const badge = c.querySelector('.key-badge');
+                
+                if (sIdx > -1) {
+                    c.classList.add('selected');
+                    badge.style.display = 'flex';
+                    badge.innerText = sIdx === 0 ? 'Z' : 'X';
+                    badge.style.background = sIdx === 0 ? '#fff' : '#ffd700'; // Z는 흰색, X는 골드
+                } else {
+                    c.classList.remove('selected');
+                    badge.style.display = 'none';
+                }
+            });
+        }
+
+        function startGame() {
+            // 아무것도 선택 안해도 됨. 선택한 것만 저장
+            localStorage.setItem('bossRush_skills', JSON.stringify(selectedSkills));
+            location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
