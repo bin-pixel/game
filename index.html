@@ -119,14 +119,6 @@
     <script src="index.js"></script>
 
     <script>
-        // 메인으로(start.html) 이동 함수
-        function goToStartPage() {
-            // 이름 정보 삭제 (로그아웃 효과)
-            localStorage.removeItem('playerName');
-            // start.html로 이동
-            window.location.href = 'start.html';
-        }
-
         // 게임 오버 화면 표시
         function showGameOverScreen(finalScore) {
             const screen = document.getElementById('game-over-screen');
