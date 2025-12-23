@@ -2,58 +2,54 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS RUSH: v26.0 (Parry Update)</title>
-    <link rel="stylesheet" href="style.css?v=26">
+    <title>NEON BULLET HELL: ONLINE</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-wrapper">
-        <div id="game-screen">
-            <div class="boss-hp-container">
-                <div id="boss-hp-bar"></div>
-                <div id="boss-hp-text">10000 / 10000</div>
-            </div>
-            <canvas id="c" width="600" height="800"></canvas>
-            
-            <div id="ui-layer">
-                <div id="score-box">SCORE: 0</div>
-                <div id="hp-box">♥♥♥♥♥</div>
-                <div id="msg-box"></div>
-                <div id="admin-msg">GOD MODE ON</div>
-            </div>
-        </div>
+    <div id="login-overlay" class="overlay">
+        <h1>NEON BULLET HELL</h1>
+        <p>ENTER YOUR CODENAME</p>
+        <input type="text" id="nickname-input" class="retro-input" placeholder="ID" maxlength="10">
+        <button id="login-btn" class="neon-btn">CONNECT</button>
+    </div>
 
-        <div id="side-panel">
-            <div class="skill-title">SKILLS</div>
-            <div id="skill-list">
-                <div class="skill" id="skill-12" style="border-color: #fff; color: #fff;"><div class="key">SPC</div><div class="name">패링</div><div class="cooldown"></div></div>
-                
-                <div class="skill" id="skill-1"><div class="key">1</div><div class="name">무적</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-2"><div class="key">2</div><div class="name">산데</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-3"><div class="key">3</div><div class="name">반사</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-4"><div class="key">4</div><div class="name">방패</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-5"><div class="key">5</div><div class="name">레일건</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-7"><div class="key">7</div><div class="name">동결</div><div class="cooldown"></div></div>
-                <div class="skill" id="skill-10"><div class="key">0</div><div class="name">중력장</div><div class="cooldown"></div></div>
-                <div class="skill special" id="skill-11"><div class="key">-</div><div class="name">리콜</div><div class="cooldown"></div></div>
-            </div>
-        </div>
+    <div id="skill-overlay" class="overlay hidden">
+        <h2>SELECT MODULES</h2>
+        <p>Choose 2 skills (Z / X). Space is Parry.</p>
+        <div id="skill-container"></div>
+        <button id="start-game-btn" class="neon-btn">INITIATE LINK</button>
+    </div>
 
-        <div id="debug-panel">
-            <div class="debug-title">ADMIN CONTROL</div>
-            <div class="phase-buttons">
-                <button onclick="setPhase(1)">P1</button>
-                <button onclick="setPhase(2)">P2</button>
-                <button onclick="setPhase(3)">P3</button>
-                <button onclick="setPhase(4)">P4</button>
-            </div>
-            <div id="debug-info">
-                <p>FPS: <span id="d-fps">60</span></p>
-                <p>HP: <span id="d-hp">0</span></p>
-                <p>Phase: <span id="d-phase">1</span></p>
-                <ul id="d-patterns"></ul>
-            </div>
+    <div id="result-overlay" class="overlay hidden">
+        <div id="new-record-anim">🎉 LEGENDARY RECORD! 🎉</div>
+        <h2 id="result-title">MISSION FAILED</h2>
+        <h1 id="final-score">SCORE: 0</h1>
+        <div id="rank-list">Connecting...</div>
+        <button id="restart-btn" class="neon-btn">REBOOT SYSTEM</button>
+    </div>
+
+    <div id="admin-modal" class="overlay hidden">
+        <h2 style="color:red;">ADMIN ACCESS</h2>
+        <input type="password" id="admin-pw" class="retro-input" placeholder="PASS" maxlength="4">
+    </div>
+
+    <div id="ui-layer" class="hidden">
+        <div id="boss-hp-container">
+            <div id="boss-hp-bar"></div>
+            <div id="boss-hp-text">10000 / 10000</div>
+        </div>
+        <div id="score-box">SCORE: 0</div>
+        <div id="hp-box">♥♥♥♥♥</div>
+        <div id="skill-hud">
+            <div class="skill-icon" id="hud-z"><span class="key">Z</span><div class="cd"></div></div>
+            <div class="skill-icon" id="hud-x"><span class="key">X</span><div class="cd"></div></div>
+            <div class="skill-icon" id="hud-space"><span class="key">SPC</span><div class="cd"></div></div>
         </div>
     </div>
-    <script src="game.js?v=26"></script>
+
+    <canvas id="c" width="600" height="800"></canvas>
+    <div id="admin-status">ADMIN MODE (CHEATER)</div>
+
+    <script type="module" src="main.js"></script>
 </body>
 </html>
