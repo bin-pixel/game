@@ -1,6 +1,6 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-// 도트 그래픽 느낌을 위해 false, 부드럽게 하려면 true
+// 도트 그래픽 느낌 (원하시면 true로 변경 가능)
 ctx.imageSmoothingEnabled = false; 
 
 // UI 엘리먼트 가져오기
@@ -27,9 +27,9 @@ let isRewinding = false;
 let loopCount = 0;
 let lastTime = Date.now();
 let showScoreLines = false; 
-let countdownTimer = 0; // 카운트다운용
+let countdownTimer = 0;
 
-// 최적화된 상태 저장 (5프레임 주기)
+// 상태 저장 (시간 역행용)
 let gameStateHistory = [];
 const MAX_HISTORY = 60; 
 let historyTimer = 0;   
@@ -69,8 +69,7 @@ const skills = {
     2: { name: '산데', cd: 1200, duration: 300, active: false, timer: 0 }, 
     3: { name: '반사', cd: 600, duration: 6, active: false, timer: 0 }, 
     4: { name: '방패', cd: 900, duration: 600, active: false, timer: 0 }, 
-    // [수정] 레일건 쿨타임 10초(600프레임)
-    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, 
+    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, // 쿨타임 10초
     7: { name: '동결', cd: 1800, duration: 240, active: false, timer: 0 }, 
     10: { name: '중력장', cd: 1200, duration: 300, active: false, timer: 0 }, 
     11: { name: '리콜', cd: 420, duration: 0, active: false, timer: 0 },
@@ -101,7 +100,7 @@ function getBulletColor() {
     return '#ff0000';
 }
 
-// [수정] 점수 라인 변경
+// 점수 배율 구역 설정
 function getScoreMultiplier() {
     if (player.y <= 420) return 5; 
     if (player.y <= 520) return 4; 
@@ -148,7 +147,6 @@ function updateDebugPanel() {
 }
 
 function spawnParticles(x, y, color, count, speed) {
-    // [수정] 파티클 개수 제한 제거 (화려함 복구)
     for(let i=0; i<count; i++) {
         let angle = Math.random() * Math.PI * 2;
         let spd = Math.random() * speed;
@@ -157,9 +155,7 @@ function spawnParticles(x, y, color, count, speed) {
 }
 
 function spawnText(x, y, text, color, size) {
-    // [수정] 텍스트 풀 제한을 100개로 늘려 점수 씹힘 방지
     if (texts.length > 100) texts.shift(); 
-    // 텍스트 위치 랜덤 분산
     let rx = x + (Math.random() - 0.5) * 40;
     let ry = y + (Math.random() - 0.5) * 20;
     texts.push({ x: rx, y: ry, text: text, color: color, size: size, life: 40, vy: -1.0 });
@@ -202,6 +198,7 @@ function shoot(p) {
         isRailgun: p.isRailgun || false,
         isGravityCounter: p.isGravityCounter || false,
         scoreVal: p.scoreVal || 0,
+        hasHitBoss: p.hasHitBoss || false, // 레일건 단타 체크용 플래그
         hp: bulletHp, maxHp: bulletHp, isGiant: isGiant
     });
 }
@@ -300,17 +297,28 @@ const patterns = {
 
 let patternTimer = 0;
 let activePatterns = [];
+
+// [핵심 변경] 3페이즈 이상 패턴 수 증가 로직
 function pickPatterns() {
     activePatterns = [];
     let p = boss.phase;
     let count = 1;
-    if (p === 1 && Math.random() < 0.1) count = 1;
-    if (p === 2 && Math.random() < 0.7) count = 2;
-    if (p === 3) count = Math.random() < 0.8 ? 2 : 3;
-    if (p === 4) {
+
+    if (p === 1) {
+        if (Math.random() < 0.1) count = 1; 
+    } 
+    else if (p === 2) {
+        count = Math.random() < 0.7 ? 2 : 1;
+    } 
+    else if (p === 3) {
+        // [수정] 3페이즈: 무조건 3개 이상 (기본 3개, 확률 4개)
+        count = Math.random() < 0.3 ? 4 : 3;
+    } 
+    else if (p === 4) {
+        // [수정] 4페이즈: 무조건 3개 이상 (3, 4, 5개 중 하나)
         let rnd = Math.random();
-        if (rnd < 0.05) count = 5;      
-        else if (rnd < 0.45) count = 4; 
+        if (rnd < 0.10) count = 5;      
+        else if (rnd < 0.50) count = 4; 
         else count = 3;                 
     }
     
@@ -399,10 +407,15 @@ function useSkill(id) {
 
     if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
     if (id === 5) { 
-        // [수정] 레일건 데미지 10
-        shoot({ x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, c: 'cyan', isEnemy: false, damage: 10, isRailgun: true });
+        // [수정] 레일건: 단타(70뎀/80점) 설정
+        shoot({ 
+            x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, 
+            w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, 
+            c: 'cyan', isEnemy: false, 
+            damage: 70, isRailgun: true, scoreVal: 80, hasHitBoss: false 
+        });
         player.y = Math.min(790, player.y + 30);
-        spawnParticles(player.x, player.y-20, 'cyan', 40, 8); // 파티클 많이
+        spawnParticles(player.x, player.y-20, 'cyan', 40, 8); 
         gameScreen.classList.add('shake-effect');
         setTimeout(() => gameScreen.classList.remove('shake-effect'), 200);
     }
@@ -438,8 +451,9 @@ function updateSkills() {
                 s.active = false;
                 if (i===4) shieldObj = null;
                 if (i===10 && gravityObj) { 
-                    let dmg = Math.min(gravityObj.absorbed * 4, 150); 
-                    let scoreBonus = gravityObj.absorbed * 4; 
+                    // [수정] 중력장 최대 데미지/점수 제한
+                    let dmg = Math.min(gravityObj.absorbed * 4, 100); 
+                    let scoreBonus = Math.min(gravityObj.absorbed * 4, 200); 
 
                     let angleToBoss = Math.atan2(boss.y - gravityObj.y, boss.x - gravityObj.x);
                     shoot({
@@ -812,13 +826,15 @@ function update() {
                 }
             }
 
+            // [수정] 반사 스킬: 고정 데미지(2), 고정 점수(1)
             if (skills[3].active && !b.isLaser) {
                 if (distSq < 160000 && distSq > 3600) { 
                     b.isEnemy = false; b.color = 'cyan'; 
                     b.angle = Math.atan2(boss.y - b.y, boss.x - b.x);
                     b.homing = 0.2; 
-                    score += 2;
-                    spawnText(b.x, b.y, "+2", '#0ff', 12);
+                    b.damage = 2; 
+                    b.scoreVal = 1;
+                    spawnText(b.x, b.y, "Reflect", '#0ff', 10);
                     continue;
                 }
             }
@@ -911,7 +927,6 @@ function update() {
             }
 
             let hitAny = false;
-            let dmg = b.damage || 3;
             let isHit = false;
 
             if (b.isLaser) {
@@ -925,32 +940,42 @@ function update() {
             }
 
             if(isHit) {
-                boss.hp -= dmg; 
-                hitAny = true;
-                
-                let gainScore = 0;
-                
+                // [수정] 레일건 단타 적용 (hasHitBoss 플래그 사용)
                 if (b.isRailgun) {
-                    gainScore = 1; // 레일건 틱당 점수
-                } else if (b.isGravityCounter) {
-                    gainScore = b.scoreVal || 0;
-                } else {
-                    let mult = getScoreMultiplier();
-                    gainScore = 1 * mult;
-                }
-
-                score += gainScore;
-                
-                // [수정] 일반 탄은 즉시, 레이저/레일건은 0.1초마다 점수 표시 (가독성 확보)
-                if (gainScore > 0) {
-                    if (b.isRailgun || b.isLaser) {
-                        if (frame % 6 === 0) spawnText(boss.x, boss.y - 30, `+${gainScore*6}`, '#0f0', 15);
+                    if (b.hasHitBoss) {
+                        hitAny = true; // 데미지 없음
                     } else {
-                        spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
+                        boss.hp -= b.damage; // 70
+                        score += b.scoreVal; // 80
+                        spawnText(boss.x, boss.y - 30, `BIG HIT +${b.scoreVal}`, 'cyan', 25);
+                        b.hasHitBoss = true;
+                        hitAny = true;
+                        spawnParticles(boss.x, boss.y, 'cyan', 20, 5);
                     }
+                } 
+                else {
+                    // 일반/반사/중력장
+                    boss.hp -= (b.damage || 3);
+                    hitAny = true;
+                    
+                    let gainScore = 0;
+                    if (b.scoreVal !== undefined && b.scoreVal > 0) {
+                        gainScore = b.scoreVal;
+                    } else {
+                        gainScore = 1 * getScoreMultiplier();
+                    }
+
+                    score += gainScore;
+                    
+                    if (gainScore > 0) {
+                        if (b.isLaser) {
+                            if (frame % 6 === 0) spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
+                        } else {
+                            spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
+                        }
+                    }
+                    if(frame % 3 === 0) spawnParticles(boss.x + (Math.random()-0.5)*20, boss.y + (Math.random()-0.5)*20, 'cyan', 2, 2);
                 }
-                
-                if(frame % 3 === 0) spawnParticles(boss.x + (Math.random()-0.5)*20, boss.y + (Math.random()-0.5)*20, 'cyan', 2, 2);
             }
             if(hitAny && !b.isLaser) b.dead = true;
         }
@@ -972,7 +997,7 @@ function draw() {
     
     ctx.fillStyle = '#555';
     stars.forEach(s => {
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+        ctx.fillRect(s.x, s.y, s.size, s.size);
     });
 
     if (showScoreLines) {
@@ -980,7 +1005,6 @@ function draw() {
         ctx.lineWidth = 1;
         ctx.font = "10px Arial";
         ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-        // [수정] 라인 그리기 업데이트
         const lines = [420, 520, 650, 740];
         const scores = [5, 4, 3, 2];
         lines.forEach((y, i) => {
@@ -990,186 +1014,175 @@ function draw() {
         ctx.fillText(`ZONE 1`, 10, 790);
     }
 
-    afterimages.forEach((img, i) => {
-        ctx.save(); ctx.globalAlpha = img.alpha;
-        ctx.fillStyle = 'cyan'; ctx.fillRect(img.x-15, img.y-15, 30, 30);
-        ctx.restore(); 
-        if (!skills[2].active) img.alpha -= 0.05;
-    });
-    if (!skills[2].active) afterimages = afterimages.filter(i => i.alpha > 0);
+    if (state === 'play' || state === 'over' || state === 'countdown') {
+        // 잔상
+        afterimages.forEach(img => {
+            ctx.fillStyle = `rgba(100, 200, 255, ${img.alpha})`;
+            ctx.beginPath(); ctx.arc(img.x, img.y, 3, 0, Math.PI*2); ctx.fill();
+        });
 
-    if (shieldObj) {
-        ctx.save();
-        ctx.translate(shieldObj.x, shieldObj.y);
-        ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; 
-        ctx.strokeRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
-        ctx.fillRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
-        ctx.restore();
-    }
-    
-    if (gravityObj) {
-        ctx.save(); ctx.translate(gravityObj.x, gravityObj.y);
-        ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; 
-        ctx.beginPath(); ctx.arc(0, 0, gravityObj.r, 0, Math.PI*2); ctx.stroke();
-        ctx.fillStyle = 'rgba(100,0,255,0.1)'; ctx.fill();
-        ctx.restore();
-    }
+        // 플레이어 그리기
+        if (state !== 'over') {
+            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : 'white');
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
+            
+            // 히트박스
+            ctx.fillStyle = 'red';
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2); ctx.fill();
 
-    if (skills[12].active) {
-        ctx.save();
-        ctx.strokeStyle = 'white'; ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y - 30, 40, Math.PI, 0); 
-        ctx.stroke();
-        ctx.restore();
-    }
-
-    bullets.forEach(b => {
-        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
-        if (b.warnTime > 0 && b.timer < b.warnTime) {
-            ctx.globalAlpha = 0.2; ctx.fillStyle = b.color;
-            if(b.isLaser) {
-                ctx.fillRect(-1000, -b.h/2, b.w+1000, b.h);
-            } else { 
-                ctx.beginPath(); ctx.arc(0,0,2,0,Math.PI*2); ctx.fill();
-                ctx.strokeStyle=b.color; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(50,0); ctx.stroke();
+            // 패링 범위 시각화
+            if (skills[12].active) {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 36, -Math.PI, 0); 
+                ctx.stroke();
             }
-            ctx.globalAlpha = 1.0;
-        } else {
-            ctx.fillStyle = b.color;
+        }
+
+        // 보스 그리기
+        if (boss.hp > 0) {
+            ctx.save();
+            ctx.translate(boss.x, boss.y);
+            if (boss.freeze) ctx.rotate((Math.random()-0.5)*0.2); 
+            
+            ctx.fillStyle = getPhaseColor();
+            ctx.beginPath(); ctx.arc(0, 0, boss.r, 0, Math.PI*2); ctx.fill();
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, boss.r + 5, 0, Math.PI*2); ctx.stroke();
+
+            // 보스 눈
+            ctx.fillStyle = '#000';
+            let eyeOff = (boss.phase === 3) ? 5 : 8;
+            ctx.beginPath(); ctx.arc(-eyeOff, -5, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(eyeOff, -5, 4, 0, Math.PI*2); ctx.fill();
+
+            ctx.restore();
+        }
+
+        // 탄환 그리기
+        bullets.forEach(b => {
             if(b.isLaser) {
                 let timeLeft = (b.warnTime + b.activeTime) - b.timer;
                 let currentH = b.h;
-                let appearTime = b.timer - b.warnTime;
-                if (appearTime < 5) currentH = b.h * (appearTime/5);
-                if (timeLeft < 10) currentH = b.h * (timeLeft/10);
-                
-                if (boss.phase === 4 && b.isEnemy) {
-                    ctx.fillStyle = '#888'; 
-                    ctx.fillRect(-1000, -currentH/2 - 4, b.w+1000, currentH + 8);
-                    ctx.fillStyle = '#fff';
-                    ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
+                let alpha = 0.8;
+
+                if (b.timer < b.warnTime) {
+                    ctx.fillStyle = `rgba(255, 0, 0, 0.2)`;
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    ctx.rotate(b.angle);
+                    ctx.fillRect(0, -1, b.w, 2);
+                    ctx.restore();
+                    return;
                 } else {
-                    ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
-                    ctx.fillStyle = '#fff'; ctx.fillRect(-1000, -currentH/4, b.w+1000, currentH/2);
+                    if (timeLeft < 10) {
+                         currentH = b.h * (timeLeft/10);
+                         alpha = timeLeft/10;
+                    }
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    ctx.rotate(b.angle);
+                    
+                    let grd = ctx.createLinearGradient(0, -currentH/2, 0, currentH/2);
+                    grd.addColorStop(0, 'transparent');
+                    grd.addColorStop(0.5, b.color || '#fff');
+                    grd.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grd;
+                    ctx.globalAlpha = alpha;
+                    ctx.fillRect(0, -currentH/2, b.w, currentH);
+                    ctx.restore();
                 }
             } else {
-                if (boss.phase === 4 && b.isEnemy) {
-                    ctx.fillStyle = '#888'; 
-                    ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
-                    ctx.fillStyle = '#fff'; 
-                    ctx.beginPath(); ctx.arc(0,0,b.r*0.5,0,Math.PI*2); ctx.fill();
-                } else {
-                    ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
-                    if(b.r > 5) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0,b.r*0.6,0,Math.PI*2); ctx.fill(); }
+                ctx.fillStyle = b.color;
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+                if (b.isGiant) {
+                     ctx.strokeStyle = '#fff'; ctx.lineWidth=1; ctx.stroke();
+                     ctx.fillStyle = '#000'; ctx.font="10px Arial"; ctx.fillText(Math.ceil(b.hp), b.x-5, b.y+3);
                 }
             }
+        });
+
+        // 오브젝트들 (방패, 중력장)
+        if (shieldObj) {
+            ctx.fillStyle = `rgba(0, 255, 255, ${0.3 + Math.sin(frame*0.1)*0.2})`;
+            ctx.fillRect(shieldObj.x - shieldObj.w/2, shieldObj.y - shieldObj.h/2, shieldObj.w, shieldObj.h);
         }
-        ctx.restore();
-    });
-
-    let color = getPhaseColor();
-    ctx.fillStyle = color; 
-    ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
-    
-    explosions.forEach(e => {
-        ctx.save(); ctx.translate(e.x, e.y);
-        ctx.strokeStyle = 'orange'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.stroke();
-        ctx.restore();
-    });
-
-    particles.forEach(p => {
-        ctx.fillStyle = p.color; ctx.globalAlpha = p.life / 50;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-        ctx.globalAlpha = 1;
-    });
-
-    if (player.invul <= 0 || frame % 4 < 2) {
-        ctx.fillStyle = player.slowTimer > 0 ? '#555' : 'red'; 
-        if (boss.phase === 4) {
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
-            ctx.fillStyle = '#222'; 
-            ctx.fillRect(player.x-15, player.y-15, 30, 30);
-            ctx.strokeRect(player.x-15, player.y-15, 30, 30);
-        } else {
-            ctx.fillRect(player.x-15, player.y-15, 30, 30);
+        if (gravityObj) {
+            ctx.fillStyle = `rgba(150, 0, 255, 0.2)`;
+            ctx.beginPath(); ctx.arc(gravityObj.x, gravityObj.y, gravityObj.r, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; ctx.stroke();
         }
 
-        ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,player.hitboxSize,0,Math.PI*2); ctx.fill();
-        if (skills[3].active) { ctx.strokeStyle = 'lime'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(player.x, player.y, 400, 0, 2*Math.PI); ctx.stroke(); }
-        if (skills[1].active) { ctx.strokeStyle = 'gold'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(player.x, player.y, 40, 0, 2*Math.PI); ctx.stroke(); }
-        if (isRewinding) { ctx.fillStyle = '#0f0'; ctx.fillRect(player.x-15, player.y-15, 30, 30); }
+        // 이펙트들
+        explosions.forEach(e => {
+            ctx.fillStyle = `rgba(255, 100, 0, ${e.life/20})`;
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+        });
+
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life / 20;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1.0;
+        });
+
+        texts.forEach(t => {
+            ctx.fillStyle = t.color;
+            ctx.font = `bold ${t.size}px Arial`;
+            ctx.fillText(t.text, t.x, t.y);
+        });
     }
-    
-    texts.forEach(t => {
-        ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Arial`;
-        ctx.fillText(t.text, t.x, t.y);
-    });
 
-    if(state === 'over' || state === 'clear') {
-        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,600,800);
-        ctx.fillStyle = '#fff'; ctx.font = '50px Courier'; ctx.textAlign='center';
-        
-        let title = state === 'clear' ? "VICTORY!" : "GAME OVER";
-        ctx.fillText(title, 300, 300);
-        
-        // 결과 정보 표시
-        ctx.font = '24px Courier';
-        let survivalTime = (frame / 60).toFixed(1); 
-        ctx.fillText(`Survival Time: ${survivalTime}s`, 300, 380);
-        ctx.fillText(`Final Score: ${score}`, 300, 420);
-        
-        if (state === 'clear' && frame % 20 === 0) spawnParticles(Math.random()*600, Math.random()*600, `hsl(${Math.random()*360},100%,50%)`, 30, 5);
-        
-        ctx.fillStyle = '#aaa';
-        ctx.font = '20px Courier'; ctx.fillText("Press [R] to Retry", 300, 500);
+    if (state === 'over') {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0,0,600,800);
+        ctx.fillStyle = 'red';
+        ctx.font = '50px Arial';
+        ctx.fillText("GAME OVER", 150, 400);
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.fillText("Press R to Restart", 210, 450);
+        ctx.fillText(`Final Score: ${score}`, 220, 500);
     }
 }
 
-function loop() { update(); draw(); requestAnimationFrame(loop); }
-function angleToP(origin) { return Math.atan2(player.y-origin.y, player.x-origin.x); }
-function resetGame() {
-    boss.hp = boss.maxHp; boss.phase = 1; score = 0; frame = 0;
-    player.hp = player.maxHp; player.invul = 0; player.slowTimer = 0; player.regenTimer = 0;
-    bullets.length=0; state='init'; patternTimer = 0; boss.transitioning = false; boss.freeze=false; boss.moveTimer=0;
-    boss.isChanneling = false;
-    timeScale = 1.0;
-    shieldObj = null; gravityObj = null; loopCount = 0;
-    afterimages = []; explosions = []; particles = []; texts = []; gameStateHistory = [];
-    for(let i=1; i<=12; i++) { if(skills[i]) { skills[i].timer = 0; skills[i].active = false; } }
-    
-    msgBox.style.display = 'none';
-    gameScreen.className = '';
-    gameScreen.style.filter = "";
-    clearAllPatterns(); 
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
 }
+
+// 유틸리티
+function angleToP(obj) { return Math.atan2(player.y - obj.y, player.x - obj.x); }
 
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
-    if (e.code === 'KeyR' && state !== 'play' && state !== 'countdown') resetGame();
-    if (e.code === 'KeyT') { 
-        godMode = !godMode; 
-        adminMsg.style.display = godMode ? 'block' : 'none'; 
-        debugPanel.style.display = godMode ? 'flex' : 'none';
-    }
-    if (e.code === 'KeyV') { showScoreLines = !showScoreLines; }
+    if (state === 'over' && e.code === 'KeyR') location.reload();
+    if (e.code === 'KeyG') { godMode = !godMode; debugPanel.style.display = godMode ? 'block' : 'none'; }
+    if (e.code === 'Digit1') useSkill(1);
+    if (e.code === 'Digit2') useSkill(2);
+    if (e.code === 'Digit3') useSkill(3);
+    if (e.code === 'Digit4') useSkill(4);
+    if (e.code === 'Digit5') useSkill(5);
+    if (e.code === 'Digit7') useSkill(7); // 6번 키 대신 7번 스킬 할당
+    if (e.code === 'KeyQ') useSkill(10);
+    if (e.code === 'KeyE') useSkill(11);
     if (e.code === 'Space') useSkill(12);
-
-    if (e.code === 'Digit1') useSkill(1); if (e.code === 'Digit2') useSkill(2);
-    if (e.code === 'Digit3') useSkill(3); if (e.code === 'Digit4') useSkill(4);
-    if (e.code === 'Digit5') useSkill(5); 
-    if (e.code === 'Digit7') useSkill(7); 
-    if (e.code === 'Digit0') useSkill(10);
-    if (e.code === 'Minus' || e.code === 'NumpadSubtract') useSkill(11);
-
+    
     if (godMode) {
-        if (e.code === 'F1') setPhase(1);
-        if (e.code === 'F2') setPhase(2);
-        if (e.code === 'F3') setPhase(3);
-        if (e.code === 'F4') setPhase(4);
+        if(e.code === 'Numpad1') window.setPhase(1);
+        if(e.code === 'Numpad2') window.setPhase(2);
+        if(e.code === 'Numpad3') window.setPhase(3);
+        if(e.code === 'Numpad4') window.setPhase(4);
     }
+    if (e.code === 'KeyV') showScoreLines = !showScoreLines;
 });
-window.addEventListener('keyup', e=>keys[e.code]=false);
+
+window.addEventListener('keyup', e => {
+    keys[e.code] = false;
+});
+
 loop();
