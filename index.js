@@ -712,6 +712,7 @@ function update() {
     if (player.invul > 0) player.invul--;
     if (player.slowTimer > 0) player.slowTimer--;
     
+    // 플레이어 자동 회복 (300프레임 = 5초마다 0.5 회복)
     player.regenTimer++;
     if (player.regenTimer > 300) { 
         player.regenTimer = 0;
@@ -741,6 +742,7 @@ function update() {
     if(keys['ArrowUp'] && player.y>5) player.y-=baseSpd;
     if(keys['ArrowDown'] && player.y<795) player.y+=baseSpd;
     
+    // 기본 공격 (가속, 레일건 스킬 사용 중이 아닐 때만)
     if (!skills[2].active && !skills[5].active && frame % 5 === 0) {
         let aimA = -Math.PI/2;
         shoot({x:player.x-10, y:player.y, a:aimA, s:15, r:3, c:'#afa', isEnemy:false});
@@ -867,6 +869,7 @@ function update() {
             let dy = b.y - player.y;
             let distSq = dx*dx + dy*dy;
 
+            // [패링 스킬 로직]
             if (skills[12].active) {
                 if (Math.abs(dx) < 36 && b.y < player.y && b.y > player.y - 60) {
                      if (!b.isLaser) {
@@ -956,10 +959,21 @@ function update() {
                     }
                     spawnParticles(player.x, player.y, 'red', 20, 5);
                     
+                    // ▼▼▼ [수정된 부분] 게임 오버 처리 및 화면 띄우기 ▼▼▼
                     if(player.hp <= 0) {
                         state = 'over';
                         sendScoreToFirebase(); // [랭킹전송]
+
+                        // 화면 띄우기 코드 추가됨
+                        const goScreen = document.getElementById('game-over-screen');
+                        if(goScreen) {
+                            goScreen.style.display = 'flex';
+                            document.getElementById('go-title').innerText = "GAME OVER";
+                            document.getElementById('go-title').style.color = "red";
+                            document.getElementById('go-score').innerText = `Final Score: ${score}`;
+                        }
                     }
+                    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                 }
             } else if (!b.isLaser && distSq < 400 && !b.grazed) { 
                 let mult = getScoreMultiplier();
@@ -1223,6 +1237,23 @@ function loop() {
 function angleToP(obj) { return Math.atan2(player.y - obj.y, player.x - obj.x); }
 function resetGame() {
     window.location.reload(); // 리셋 시 깔끔하게 새로고침
+}
+
+function goToRanking() {
+    // 랭킹 페이지 파일명이 ranking.html 이라고 가정
+    window.location.href = 'ranking.html'; 
+}
+
+function goToMain() {
+    // 닉네임과 스킬 정보를 지우고 시작 페이지로 이동 (로그아웃)
+    localStorage.removeItem('bossRush_nickname');
+    localStorage.removeItem('bossRush_skills');
+    window.location.href = 'start.html';
+}
+
+function resetGame() {
+    // 게임 재시작 (새로고침)
+    window.location.reload();
 }
 
 function sendScoreToFirebase() {
