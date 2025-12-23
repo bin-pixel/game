@@ -1,11 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
+
+/* [1] 공통 레이아웃 (원본 기반) */
 body {
     margin: 0; background: #000; height: 100vh;
     display: flex; justify-content: center; align-items: center;
     font-family: 'Courier New', monospace; overflow: hidden;
+    color: #fff;
+    user-select: none;
 }
 
+/* 페이지별 컨테이너가 중앙 정렬되도록 보정 */
+.container, #login-box, #game-wrapper {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+
+/* [2] 게임 화면 구조 */
 #game-wrapper {
-    display: flex; gap: 20px; align-items: flex-start;
+    position: relative; /* 사이드 패널 배치를 위해 relative로 변경 */
+    width: 600px; height: 800px;
 }
 
 #game-screen {
@@ -15,7 +27,7 @@ body {
 }
 canvas { display: block; background: transparent; }
 
-/* UI */
+/* [3] UI 요소 (체력바, 점수 등) */
 .boss-hp-container { 
     position: absolute; top: 0; left: 0; width: 100%; height: 16px; 
     background: #222; z-index: 5; border-bottom: 1px solid #444;
@@ -35,6 +47,8 @@ canvas { display: block; background: transparent; }
 #ui-layer { position: absolute; top: 25px; left: 15px; width: 570px; pointer-events: none; z-index: 10; }
 #score-box { color: #fff; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 0 #000; }
 #hp-box { color: #ff3333; font-size: 24px; margin-top: 5px; text-shadow: 2px 2px 0 #000; letter-spacing: 2px; }
+#player-info { font-size: 14px; color: #aaa; margin-top: 5px; text-shadow: 1px 1px 0 #000; }
+
 #admin-msg { color: #ffd700; font-size: 18px; font-weight: bold; margin-top: 5px; display: none; text-shadow: 0 0 10px orange; }
 
 #msg-box {
@@ -43,47 +57,103 @@ canvas { display: block; background: transparent; }
     text-shadow: 0 0 20px #f00, 3px 3px 0 #000; display: none; z-index: 20; letter-spacing: -2px;
 }
 
-/* 스킬바 */
-#side-panel {
-    display: flex; flex-direction: column;
-    background: #111; border: 1px solid #333; padding: 10px;
-    border-radius: 8px; color: #fff; width: 60px;
-    box-shadow: 5px 5px 15px #000;
+#pause-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); display: none; z-index: 100;
+    justify-content: center; align-items: center; flex-direction: column;
 }
-.skill-title { font-size: 11px; text-align: center; margin-bottom: 10px; color: #888; font-weight: bold; letter-spacing: 1px; }
-#skill-list { display: flex; flex-direction: column; gap: 8px; }
 
-.skill {
+/* [4] 인게임 스킬바 (사이드 패널) */
+#side-panel {
+    position: absolute; right: -80px; top: 100px; /* 게임 화면 바깥 우측에 배치 */
+    display: flex; flex-direction: column; gap: 15px;
+    background: #111; border: 1px solid #333; padding: 10px;
+    border-radius: 8px; width: 50px;
+    box-shadow: 5px 5px 15px #000;
+    pointer-events: auto; /* 클릭 가능하게 */
+}
+
+/* JS에서 생성되는 스킬 슬롯 스타일 (원본 .skill 기반 수정) */
+.skill-slot {
     position: relative; width: 50px; height: 50px;
     background: rgba(40,40,40,0.9); border: 1px solid #555;
     border-radius: 6px; color: #fff; display: flex;
     justify-content: center; align-items: center;
-    font-weight: bold; cursor: pointer; overflow: hidden;
+    font-weight: bold; overflow: hidden;
     transition: transform 0.1s;
 }
-.skill:active { transform: scale(0.95); }
-.skill.special { border-color: #a0f; color: #e0f; box-shadow: 0 0 5px #a0f; }
-.skill .key { position: absolute; top: 3px; left: 5px; font-size: 10px; color: #aaa; }
-.skill .name { font-size: 10px; margin-top: 12px; text-align: center; line-height: 1.1; }
-.skill.active { border-color: #0ff; box-shadow: 0 0 15px #0ff; background: #003333; }
-.skill .cooldown { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(0,0,0,0.7); transition: height 0.1s linear; }
+.skill-slot.active { border-color: #0ff; box-shadow: 0 0 15px #0ff; background: #003333; }
 
-/* 디버그 패널 */
-#debug-panel {
-    display: flex; flex-direction: column;
-    background: #111; border: 1px solid #333; padding: 10px;
-    border-radius: 8px; color: #fff; width: 200px;
-    box-shadow: 5px 5px 15px #000; display: none;
+.skill-key { 
+    position: absolute; top: 2px; left: 4px; font-size: 12px; color: #000; 
+    background: #fff; width: 16px; height: 16px; border-radius: 50%;
+    display: flex; justify-content: center; align-items: center; font-weight: bold;
 }
-.debug-title { font-size: 14px; font-weight: bold; color: #ffd700; text-align: center; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px; }
-.phase-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; }
-.phase-buttons button { background: #333; color: #fff; border: 1px solid #555; padding: 5px; cursor: pointer; }
-.phase-buttons button:hover { background: #555; }
-#debug-info p { margin: 5px 0; font-size: 12px; color: #ccc; }
-#debug-info span { color: #fff; font-weight: bold; }
+.cooldown-bar { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: #222; }
+.cooldown-fill { height: 100%; background: #0f0; width: 0%; transition: width 0.1s linear; }
+
+/* [5] 디버그 패널 */
+#debug-panel {
+    position: absolute; top: 10px; left: 10px;
+    display: flex; flex-direction: column;
+    background: rgba(0,0,0,0.9); border: 1px solid #333; padding: 10px;
+    border-radius: 8px; color: #fff; width: 180px;
+    box-shadow: 5px 5px 15px #000; display: none; z-index: 50;
+    font-size: 12px;
+}
 #d-patterns { margin: 5px 0 0 0; padding-left: 15px; font-size: 11px; color: #888; list-style-type: square; }
 
-/* Effects */
+
+/* [6] 시작/스킬선택/랭킹 페이지용 추가 스타일 (원본 테마 유지) */
+h1.neon-text, .logo {
+    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+    color: #fff; font-size: 50px; font-weight: 900; margin-bottom: 30px;
+    animation: glitch-anim 3s infinite;
+}
+
+input {
+    background: #111; border: 2px solid #00ccff; color: #fff;
+    padding: 10px; font-family: inherit; font-size: 20px; text-align: center;
+    outline: none; width: 300px; box-shadow: 0 0 10px rgba(0,204,255,0.3);
+}
+
+button {
+    background: #000; color: #00ccff; border: 2px solid #00ccff;
+    padding: 12px 30px; font-family: inherit; font-size: 20px; font-weight: bold;
+    cursor: pointer; transition: 0.2s; box-shadow: 0 0 10px rgba(0,204,255,0.3);
+    margin-top: 10px;
+}
+button:hover { background: #00ccff; color: #000; box-shadow: 0 0 20px #00ccff; }
+
+/* 스킬 선택 카드 스타일 */
+.skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+.skill-card {
+    background: #111; border: 2px solid #444; padding: 15px;
+    border-radius: 8px; cursor: pointer; text-align: center; position: relative;
+    transition: 0.2s;
+}
+.skill-card:hover { border-color: #fff; background: #222; transform: scale(1.05); }
+.skill-card.selected { border-color: #0f0; background: #002200; box-shadow: 0 0 15px #0f0; }
+
+.key-badge {
+    position: absolute; top: -10px; right: -10px;
+    width: 25px; height: 25px; background: #fff; color: #000;
+    border-radius: 50%; font-weight: bold; display: none;
+    align-items: center; justify-content: center; border: 2px solid #000;
+}
+
+/* 랭킹 테이블 */
+table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 16px; }
+th, td { border: 1px solid #333; padding: 12px; text-align: center; }
+th { background: #111; color: #00ccff; text-shadow: 0 0 5px #00ccff; }
+tr:nth-child(even) { background: #0a0a0a; }
+tr:hover { background: #1a1a1a; }
+.rank-1 { color: #ffd700; font-weight: bold; text-shadow: 0 0 10px #ffd700; }
+.rank-2 { color: #c0c0c0; }
+.rank-3 { color: #cd7f32; }
+.cheater-mark { color: red; font-size: 12px; margin-left: 5px; }
+
+/* [7] 이펙트 애니메이션 (원본 그대로) */
 .shake-effect { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
 .glitch-effect { animation: glitch-anim 0.2s infinite; }
 .invert-effect { filter: invert(100%); }
