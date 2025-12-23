@@ -104,14 +104,14 @@ for(let i=0; i<60; i++) stars.push({x:Math.random()*600, y:Math.random()*800, si
 
 // 스킬 데이터
 const skills = {
-    1: { name: '무적', cd: 900, duration: 180, active: false, timer: 0 }, 
-    2: { name: '가속', cd: 1200, duration: 300, active: false, timer: 0 }, 
-    3: { name: '반사', cd: 600, duration: 6, active: false, timer: 0 }, 
-    4: { name: '방패', cd: 900, duration: 600, active: false, timer: 0 }, 
-    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, 
+    1: { name: '무적', cd: 600, duration: 180, active: false, timer: 0 }, 
+    2: { name: '가속', cd: 1080, duration: 300, active: false, timer: 0 }, 
+    3: { name: '반사', cd: 1620, duration: 6, active: false, timer: 0 }, 
+    4: { name: '방패', cd: 1500, duration: 600, active: false, timer: 0 }, 
+    5: { name: '레일건', cd: 660, duration: 30, active: false, timer: 0 }, 
     7: { name: '정지', cd: 1800, duration: 240, active: false, timer: 0 }, 
-    10: { name: '블랙홀', cd: 1200, duration: 300, active: false, timer: 0 }, 
-    11: { name: '리콜', cd: 420, duration: 0, active: false, timer: 0 },
+    10: { name: '블랙홀', cd: 1440, duration: 300, active: false, timer: 0 }, 
+    11: { name: '리콜', cd: 900, duration: 0, active: false, timer: 0 },
     12: { name: '패링', cd: 240, duration: 15, active: false, timer: 0 } 
 };
 
