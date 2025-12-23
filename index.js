@@ -32,7 +32,7 @@ let countdownTimer = 0;
 // 상태 저장 (시간 역행용)
 let gameStateHistory = [];
 const MAX_HISTORY = 60; 
-let historyTimer = 0;   
+let historyTimer = 0;    
 
 const player = { 
     x: 300, y: 700, r: 3, speed: 5, 
@@ -106,7 +106,7 @@ function getScoreMultiplier() {
     if (player.y <= 520) return 4; 
     if (player.y <= 650) return 3; 
     if (player.y <= 740) return 2; 
-    return 1;                      
+    return 1;                       
 }
 
 window.setPhase = function(p) {
