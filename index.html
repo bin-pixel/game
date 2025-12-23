@@ -2,8 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS RUSH: PLAY</title>
-    <link rel="stylesheet" href="style.css">
+    <title>BOSS RUSH</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -11,167 +10,231 @@
     <style>
         body {
             margin: 0;
-            background-color: #050505;
+            padding: 0;
+            background-color: #111; /* 배경색: 아주 어두운 회색 */
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            font-family: 'Courier New', Courier, monospace;
+            color: white;
+            font-family: 'Courier New', Courier, monospace; /* 게임 느낌 폰트 */
             user-select: none;
         }
 
-        /* 게임 화면 컨테이너 (캔버스 + UI) */
-        #game-container {
+        /* 게임 전체를 감싸는 틀 */
+        #game-wrapper {
             position: relative;
             width: 600px;
             height: 800px;
-            box-shadow: 0 0 20px #000;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8); /* 그림자 효과 */
         }
 
         canvas {
-            background: #000;
+            background-color: #000;
             display: block;
+            width: 100%;
+            height: 100%;
         }
 
-        /* === 상단 UI (보스 체력, 점수) === */
-        .top-ui {
+        /* === UI 오버레이 (체력, 점수 등) === */
+        #ui-layer {
             position: absolute;
-            top: 0; left: 0; width: 100%;
-            padding: 10px;
-            box-sizing: border-box;
-            z-index: 5;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 클릭은 캔버스로 통과되게 */
         }
 
-        .hp-bar-bg {
-            width: 100%; height: 20px; background: #333;
-            border: 2px solid #555; position: relative;
+        /* 체력바 디자인 */
+        .hp-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            height: 25px;
+            background: #333;
+            border: 2px solid #555;
+            z-index: 10;
         }
-        .hp-bar-fill {
-            width: 100%; height: 100%; background: #f00;
-            transition: width 0.1s;
+        .hp-fill {
+            width: 100%;
+            height: 100%;
+            background-color: #ff3333;
+            transition: width 0.2s, background-color 0.2s;
         }
         .hp-text {
-            position: absolute; top: 0; left: 0; width: 100%;
-            text-align: center; color: #fff; font-weight: bold;
-            line-height: 20px; text-shadow: 1px 1px 0 #000;
-        }
-        .score-box {
-            color: #fff; font-size: 20px; margin-top: 5px;
-            text-shadow: 0 0 5px #0ff;
-        }
-        .player-hearts {
-            color: #ff3333; font-size: 24px; margin-top: 5px;
-            text-shadow: 0 0 5px #f00;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 16px;
+            text-shadow: 1px 1px 2px black;
         }
 
-        /* === 하단 스킬 UI === */
+        /* 점수 & 플레이어 하트 */
+        .score-row {
+            position: absolute;
+            top: 55px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .score { color: #fff; text-shadow: 0 0 5px #0ff; }
+        .hearts { color: #f00; text-shadow: 0 0 5px #f00; letter-spacing: 5px; }
+
+        /* 중앙 메시지 (Ready, Start) */
+        #msg-box {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            color: #fff;
+            font-weight: 900;
+            text-shadow: 0 0 20px rgba(255,255,255,0.8);
+            text-align: center;
+            z-index: 20;
+        }
+
+        /* === 하단 스킬 슬롯 (디자인 수정됨) === */
         .skill-hud {
             position: absolute;
-            bottom: 20px; left: 20px;
-            display: flex; gap: 15px;
-            z-index: 5;
+            bottom: 30px;
+            left: 30px;
+            display: flex;
+            gap: 15px;
+            pointer-events: auto; /* 필요시 툴팁 등을 위해 */
         }
+
         .skill-slot {
-            width: 60px; height: 60px;
-            background: #222; border: 2px solid #666;
-            border-radius: 8px; position: relative;
-            display: flex; align-items: center; justify-content: center;
-            color: #fff; font-weight: bold; font-size: 24px;
+            width: 60px;
+            height: 60px;
+            background: rgba(20, 20, 20, 0.8);
+            border: 2px solid #666;
+            border-radius: 10px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ccc;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
-        .key-label {
-            position: absolute; top: -10px; left: -5px;
-            background: #fff; color: #000; font-size: 12px;
-            padding: 2px 6px; border-radius: 4px; border: 1px solid #000;
+
+        .key-badge {
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            background: #eee;
+            color: #000;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #000;
         }
+
+        .skill-icon {
+            font-size: 24px;
+            margin-bottom: 2px;
+        }
+
+        /* 쿨타임 오버레이 (어두운 막) */
         .cd-overlay {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            height: 0%; background: rgba(0, 0, 0, 0.7);
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%; /* 자바스크립트로 조절됨 */
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 8px;
             transition: height 0.1s linear;
         }
 
-        /* === 중앙 메시지 (START, CLEAR) === */
-        #msg-box {
+        /* === 게임 오버 화면 (버튼들) === */
+        #game-over-screen {
+            display: none; /* 평소엔 안 보임 */
             position: absolute;
-            top: 40%; left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 80px; color: #fff;
-            font-weight: bold;
-            text-shadow: 0 0 20px #fff;
-            z-index: 20;
-            pointer-events: none;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
         }
 
-        /* === 게임 오버 오버레이 (버튼 포함) === */
-        #game-over-screen {
-            display: none; /* 평소엔 숨김 */
-            position: absolute; top: 0; left: 0;
-            width: 600px; height: 800px;
-            background: rgba(0,0,0,0.85);
-            flex-direction: column;
-            align-items: center; justify-content: center;
-            z-index: 100;
-        }
-        #game-over-screen h1 { margin: 0 0 20px 0; }
-        #game-over-screen h2 { margin: 0 0 40px 0; }
-        
         .go-btn {
-            width: 250px; padding: 15px; margin-bottom: 15px;
-            font-size: 18px; font-weight: bold; cursor: pointer;
+            background: transparent;
+            color: white;
+            font-family: inherit;
+            font-size: 18px;
+            padding: 12px 30px;
+            margin: 10px;
+            cursor: pointer;
+            border: 2px solid white;
             transition: 0.2s;
+            width: 250px;
+            text-align: center;
         }
-        .btn-restart { background: #333; color: white; border: 2px solid white; }
-        .btn-restart:hover { background: #555; }
+        .go-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.05); }
         
-        .btn-rank { background: #003300; color: #0f0; border: 2px solid #0f0; }
-        .btn-rank:hover { background: #005500; }
+        .btn-rank { border-color: #0f0; color: #0f0; }
+        .btn-rank:hover { background: rgba(0, 255, 0, 0.1); }
         
-        .btn-main { background: #330000; color: #f00; border: 2px solid #f00; }
-        .btn-main:hover { background: #550000; }
+        .btn-main { border-color: #f00; color: #f00; }
+        .btn-main:hover { background: rgba(255, 0, 0, 0.1); }
 
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div class="top-ui">
-            <div class="hp-bar-bg">
-                <div id="ui-hp-bar" class="hp-bar-fill"></div>
-                <div id="ui-hp-text" class="hp-text">1000 / 1000</div>
-            </div>
-            <div style="display:flex; justify-content:space-between;">
-                <div id="score-box" class="score-box">SCORE: 0</div>
-                <div id="player-hp-box" class="player-hearts">♥♥♥</div>
-            </div>
-        </div>
-
-        <div id="msg-box">READY</div>
-
-        <div class="skill-hud">
-            <div class="skill-slot" id="skill-z-slot">
-                <span class="key-label">Z</span>
-                <span id="skill-z-icon">⚡</span>
-                <div id="skill-z-cd" class="cd-overlay"></div>
-            </div>
-            <div class="skill-slot" id="skill-x-slot">
-                <span class="key-label">X</span>
-                <span id="skill-x-icon">⚡</span>
-                <div id="skill-x-cd" class="cd-overlay"></div>
-            </div>
-            <div class="skill-slot">
-                <span class="key-label">SPC</span>
-                <span>🛡️</span>
-                <div id="skill-space-cd" class="cd-overlay"></div>
-            </div>
-        </div>
-
+    <div id="game-wrapper">
         <canvas id="gameCanvas" width="600" height="800"></canvas>
 
+        <div id="ui-layer">
+            <div class="hp-container">
+                <div id="ui-hp-bar" class="hp-fill"></div>
+                <div id="ui-hp-text" class="hp-text">1000 / 1000</div>
+            </div>
+
+            <div class="score-row">
+                <div id="score-box" class="score">SCORE: 0</div>
+                <div id="player-hp-box" class="hearts">♥♥♥</div>
+            </div>
+
+            <div id="msg-box">READY</div>
+
+            <div class="skill-hud">
+                <div class="skill-slot" id="skill-z-slot">
+                    <span class="key-badge">Z</span>
+                    <span class="skill-icon" id="skill-z-icon">⚡</span>
+                    <div id="skill-z-cd" class="cd-overlay"></div>
+                </div>
+                <div class="skill-slot" id="skill-x-slot">
+                    <span class="key-badge">X</span>
+                    <span class="skill-icon" id="skill-x-icon">⚡</span>
+                    <div id="skill-x-cd" class="cd-overlay"></div>
+                </div>
+                <div class="skill-slot">
+                    <span class="key-badge">SPC</span>
+                    <span class="skill-icon">🛡️</span>
+                    <div id="skill-space-cd" class="cd-overlay"></div>
+                </div>
+            </div>
+        </div>
+
         <div id="game-over-screen">
-            <h1 id="go-title" style="color: red; font-size: 60px; text-shadow: 0 0 10px red;">GAME OVER</h1>
-            <h2 id="go-score" style="color: white; font-size: 30px;">Score: 0</h2>
-            
-            <button class="go-btn btn-restart" onclick="resetGame()">다시 하기 (R)</button>
+            <h1 id="go-title" style="color:red; font-size:60px; margin-bottom:10px;">GAME OVER</h1>
+            <h2 id="go-score" style="margin-bottom:40px;">Score: 0</h2>
+
+            <button class="go-btn" onclick="resetGame()">다시 하기 (R)</button>
             <button class="go-btn btn-rank" onclick="goToRanking()">랭킹 보러가기</button>
             <button class="go-btn btn-main" onclick="goToMain()">메인으로 (로그아웃)</button>
         </div>
