@@ -1251,9 +1251,21 @@ function goToMain() {
     window.location.href = 'start.html';
 }
 
-function resetGame() {
-    // 게임 재시작 (새로고침)
-    window.location.reload();
+function gameOver() {
+    // 1. 게임 루프 멈추기 (애니메이션 정지)
+    // (cancelAnimationFrame 변수 이름은 님의 코드에 맞게 수정: animationId, reqId 등)
+    if (typeof animationId !== 'undefined') {
+        cancelAnimationFrame(animationId);
+    }
+    
+    // 2. ★ 핵심 ★ HTML에 만들어둔 화면 띄우기 함수 호출!
+    // score 변수는 님의 게임 점수 변수 이름이어야 합니다.
+    try {
+        showGameOverScreen(score); 
+    } catch (e) {
+        console.error("화면 띄우기 실패:", e);
+        alert("GAME OVER! 점수: " + score);
+    }
 }
 
 function sendScoreToFirebase() {
