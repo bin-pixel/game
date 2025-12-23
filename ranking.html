@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>BOSS RUSH: RANKING</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <style>
+        body { flex-direction: column; }
+        .container { width: 800px; text-align: center; }
+        h1 { font-size: 50px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="neon-text">HALL OF FAME</h1>
+        
+        <table id="rank-table">
+            <thead>
+                <tr>
+                    <th width="10%">RANK</th>
+                    <th width="20%">NAME</th>
+                    <th width="20%">SCORE</th>
+                    <th width="35%">LOADOUT</th> <th width="15%">TIME</th>
+                </tr>
+            </thead>
+            <tbody id="rank-body">
+                <tr><td colspan="5">Loading Data...</td></tr>
+            </tbody>
+        </table>
+
+        <br><br>
+        <button onclick="location.href='start.html'">BACK TO MENU</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDbrsr6g0X6vKujfqBcFY0h--Rn3y1nCEI",
+            authDomain: "bin20703-edda7.firebaseapp.com",
+            databaseURL: "https://bin20703-edda7-default-rtdb.firebaseio.com",
+            projectId: "bin20703-edda7",
+            storageBucket: "bin20703-edda7.firebasestorage.app",
+            messagingSenderId: "242056223892",
+            appId: "1:242056223892:web:885b9bf54aa60ce7732881",
+            measurementId: "G-C2VDTXTVZQ"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // 점수 기준 상위 10개 가져오기
+        db.ref('scores').orderByChild('score').limitToLast(10).once('value').then(snapshot => {
+            const data = [];
+            snapshot.forEach(child => {
+                data.push(child.val());
+            });
+            
+            // limitToLast는 오름차순(낮은점수 -> 높은점수)으로 주므로 뒤집어야 함
+            data.reverse();
+            renderTable(data);
+        });
+
+        function renderTable(data) {
+            const tbody = document.getElementById('rank-body');
+            tbody.innerHTML = "";
+
+            data.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                
+                // 1,2,3위 클래스 처리
+                let rankClass = "";
+                if(index === 0) rankClass = "rank-1";
+                if(index === 1) rankClass = "rank-2";
+                if(index === 2) rankClass = "rank-3";
+
+                // 치터 표시
+                let nameDisplay = row.nickname;
+                if(row.isCheater) {
+                    nameDisplay += ' <span class="cheater-mark">[CHEAT]</span>';
+                    tr.style.color = "#555"; // 치터는 흐리게
+                }
+
+                // 스킬 표시 (없으면 없음)
+                let skillDisplay = "없음";
+                if (row.skills && row.skills.length > 0) {
+                    // 한글 이름만 추출해서 콤마로 연결
+                    skillDisplay = row.skills.join(", ");
+                }
+
+                tr.innerHTML = `
+                    <td class="${rankClass}">${index + 1}</td>
+                    <td class="${rankClass}">${nameDisplay}</td>
+                    <td class="${rankClass}">${row.score.toLocaleString()}</td>
+                    <td style="font-size:14px; color:#aaa;">${skillDisplay}</td>
+                    <td>${row.playTime}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
