@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>BOSS RUSH: LOGIN</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        #login-box { text-align: center; }
+        .logo { font-size: 60px; margin-bottom: 40px; }
+    </style>
+</head>
+<body>
+    <div id="login-box">
+        <div class="logo neon-text glitch">BOSS RUSH<br>SYSTEM</div>
+        <input type="text" id="nickname" placeholder="ENTER NICKNAME" maxlength="8" autocomplete="off">
+        <br><br>
+        <button onclick="goToSkillSelect()">SKILL SELECT >></button>
+        <br><br>
+        <button onclick="location.href='ranking.html'" style="font-size: 14px; border-color: #666; color:#aaa;">VIEW RANKING</button>
+    </div>
+
+    <script>
+        function goToSkillSelect() {
+            const nick = document.getElementById('nickname').value.trim();
+            if(!nick) { alert("닉네임을 입력해주세요."); return; }
+            localStorage.setItem('bossRush_nickname', nick);
+            location.href = 'skill.html';
+        }
+    </script>
+</body>
+</html>
