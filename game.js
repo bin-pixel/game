@@ -1,8 +1,7 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-
-// 도트 그래픽 느낌 제거 (부드러운 처리)
-// ctx.imageSmoothingEnabled = false; 
+// [복구] 도트 그래픽 느낌 (과거 코드 스타일)
+ctx.imageSmoothingEnabled = false; 
 
 // UI 엘리먼트 가져오기
 const uiHp = document.getElementById('boss-hp-bar');
@@ -36,14 +35,14 @@ const MAX_HISTORY = 60;
 let historyTimer = 0;   
 
 const player = { 
-    x: 300, y: 700, r: 5, speed: 5, // 깔끔한 흰 원 (반지름 5)
+    x: 300, y: 700, r: 3, speed: 5, 
     hp: 5, maxHp: 5, 
     invul: 0, slowTimer: 0,
     hitboxSize: 2, regenTimer: 0 
 };
 
 const boss = { 
-    x: 300, y: 150, r: 30, baseR: 30, // 고정 크기
+    x: 300, y: 150, r: 30, baseR: 30,
     hp: 10000, maxHp: 10000, 
     phase: 1, angle: 0,
     transitioning: false, freeze: false, moveTimer: 0,
@@ -85,6 +84,7 @@ const patternNames = {
     19: "Time Stop", 20: "White Laser", 21: "Satellite Shield"
 };
 
+// [복구] 과거 코드의 색상 함수
 function getPhaseColor() {
     if (boss.phase === 1) return '#00ccff';
     if (boss.phase === 2) return '#ff3333';
@@ -309,6 +309,7 @@ function pickPatterns() {
         count = Math.random() < 0.7 ? 2 : 1;
     } 
     else if (p === 3) {
+        // [유지] 3페이즈 난이도 강화 (최소 3개)
         count = Math.random() < 0.3 ? 4 : 3;
     } 
     else if (p === 4) {
@@ -403,6 +404,7 @@ function useSkill(id) {
 
     if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
     if (id === 5) { 
+        // [유지] 레일건 단타 70데미지
         shoot({ 
             x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, 
             w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, 
@@ -446,6 +448,7 @@ function updateSkills() {
                 s.active = false;
                 if (i===4) shieldObj = null;
                 if (i===10 && gravityObj) { 
+                    // [유지] 중력장 밸런스
                     let dmg = Math.min(gravityObj.absorbed * 4, 100); 
                     let scoreBonus = Math.min(gravityObj.absorbed * 4, 200); 
 
@@ -726,7 +729,7 @@ function update() {
         checkPhaseTransition(newPhase);
     }
 
-    // 보스 크기 고정 (고무줄 몸집 삭제)
+    // [복구] 보스 크기 고정 (고무줄 제거)
     boss.r = boss.baseR;
     
     uiHp.style.width = (hpR*100)+'%';
@@ -824,6 +827,7 @@ function update() {
                     b.isEnemy = false; b.color = 'cyan'; 
                     b.angle = Math.atan2(boss.y - b.y, boss.x - b.x);
                     b.homing = 0.2; 
+                    // [유지] 반사 대미지 2
                     b.damage = 2; 
                     b.scoreVal = 1;
                     spawnText(b.x, b.y, "Reflect", '#0ff', 10);
@@ -981,16 +985,16 @@ function update() {
     texts = texts.filter(t => t.life > 0);
 }
 
+// [복구] 시각적 렌더링 함수 (과거 코드 스타일)
 function draw() {
     ctx.clearRect(0,0,600,800);
     
-    // 1. 배경 (별)
+    // 1. 배경
     ctx.fillStyle = '#555';
     stars.forEach(s => {
-        ctx.fillRect(s.x, s.y, s.size, s.size);
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
     });
 
-    // 점수 라인 (V키)
     if (showScoreLines) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
@@ -1009,79 +1013,71 @@ function draw() {
         
         // [잔상]
         afterimages.forEach(img => {
-            ctx.fillStyle = `rgba(100, 200, 255, ${img.alpha})`;
-            ctx.beginPath(); ctx.arc(img.x, img.y, 5, 0, Math.PI*2); ctx.fill();
+            ctx.save(); ctx.globalAlpha = img.alpha;
+            ctx.fillStyle = 'cyan'; ctx.fillRect(img.x-15, img.y-15, 30, 30);
+            ctx.restore(); 
         });
 
         // [탄환] (레이어 순서: 배경 -> 탄환 -> 보스 -> 플레이어)
         bullets.forEach(b => {
-            if(b.isLaser) {
-                let timeLeft = (b.warnTime + b.activeTime) - b.timer;
-                let currentH = b.h;
-                let alpha = 0.8;
-
-                if (b.timer < b.warnTime) {
-                    ctx.fillStyle = `rgba(255, 0, 0, 0.2)`;
-                    ctx.save();
-                    ctx.translate(b.x, b.y);
-                    ctx.rotate(b.angle);
-                    ctx.fillRect(0, -1, b.w, 2);
-                    ctx.restore();
-                    return;
-                } else {
-                    if (timeLeft < 10) {
-                         currentH = b.h * (timeLeft/10);
-                         alpha = timeLeft/10;
-                    }
-                    ctx.save();
-                    ctx.translate(b.x, b.y);
-                    ctx.rotate(b.angle);
-                    
-                    // [수정됨] 그라데이션 없이 깔끔한 단색 처리
-                    ctx.fillStyle = b.color || '#fff';
-                    ctx.globalAlpha = alpha;
-                    ctx.fillRect(0, -currentH/2, b.w, currentH);
-                    ctx.restore();
-                    ctx.globalAlpha = 1.0;
+            ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+            if (b.warnTime > 0 && b.timer < b.warnTime) {
+                ctx.globalAlpha = 0.2; ctx.fillStyle = b.color;
+                if(b.isLaser) {
+                    ctx.fillRect(-1000, -b.h/2, b.w+1000, b.h);
+                } else { 
+                    ctx.beginPath(); ctx.arc(0,0,2,0,Math.PI*2); ctx.fill();
+                    ctx.strokeStyle=b.color; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(50,0); ctx.stroke();
                 }
+                ctx.globalAlpha = 1.0;
             } else {
                 ctx.fillStyle = b.color;
-                ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-                // 대형탄 체력 텍스트 제거됨
-                if (b.isGiant) {
-                     ctx.strokeStyle = '#fff'; ctx.lineWidth=1; ctx.stroke();
+                if(b.isLaser) {
+                    let timeLeft = (b.warnTime + b.activeTime) - b.timer;
+                    let currentH = b.h;
+                    let appearTime = b.timer - b.warnTime;
+                    if (appearTime < 5) currentH = b.h * (appearTime/5);
+                    if (timeLeft < 10) currentH = b.h * (timeLeft/10);
+                    
+                    if (boss.phase === 4 && b.isEnemy) {
+                        ctx.fillStyle = '#888'; 
+                        ctx.fillRect(-1000, -currentH/2 - 4, b.w+1000, currentH + 8);
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
+                    } else {
+                        // [복구] 깔끔한 2중 직사각형 레이저
+                        ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
+                        ctx.fillStyle = '#fff'; ctx.fillRect(-1000, -currentH/4, b.w+1000, currentH/2);
+                    }
+                } else {
+                    ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
+                    // [복구] 대형탄 내부 코어
+                    if(b.r > 5) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0,b.r*0.6,0,Math.PI*2); ctx.fill(); }
+                    // 숫자 표시 제거됨
                 }
             }
+            ctx.restore();
         });
 
         // [보스] (눈알 제거됨, 깔끔한 원형)
         if (boss.hp > 0) {
-            ctx.save();
-            ctx.translate(boss.x, boss.y);
-            if (boss.freeze) ctx.rotate((Math.random()-0.5)*0.2); 
-            
-            ctx.fillStyle = getPhaseColor();
-            ctx.beginPath(); ctx.arc(0, 0, boss.r, 0, Math.PI*2); ctx.fill();
-            
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(0, 0, boss.r + 5, 0, Math.PI*2); ctx.stroke();
-            ctx.restore();
+            let color = getPhaseColor();
+            ctx.fillStyle = color; 
+            ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
         }
 
         // [플레이어] (가장 위에 그려짐)
         if (state !== 'over') {
-            // 1. 플레이어 몸체 (흰색 원)
-            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : 'white');
-            ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
-            
-            // 2. [복구됨] 히트박스 표시 (빨간 점) - 이거 없애지 말라고 하신 부분
+            // [복구] 빨간색 사각형 몸체
+            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : (player.slowTimer > 0 ? '#555' : 'red'));
+            ctx.fillRect(player.x-15, player.y-15, 30, 30);
+
+            // [복구] 흰색 히트박스 점
             if (!(player.invul>0 && Math.floor(frame/4)%2===0)) {
-                ctx.fillStyle = 'red';
-                ctx.beginPath(); ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,player.hitboxSize,0,Math.PI*2); ctx.fill();
             }
 
-            // 3. 패링 범위 (스페이스바)
+            // 패링 범위
             if (skills[12].active) {
                 ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`;
                 ctx.lineWidth = 2;
@@ -1089,49 +1085,72 @@ function draw() {
                 ctx.arc(player.x, player.y, 36, -Math.PI, 0); 
                 ctx.stroke();
             }
+            // 산데비스탄 잔상 사각형
+            if (isRewinding) { ctx.fillStyle = '#0f0'; ctx.fillRect(player.x-15, player.y-15, 30, 30); }
         }
 
         // [오브젝트]
         if (shieldObj) {
-            ctx.fillStyle = `rgba(0, 255, 255, ${0.3 + Math.sin(frame*0.1)*0.2})`;
-            ctx.fillRect(shieldObj.x - shieldObj.w/2, shieldObj.y - shieldObj.h/2, shieldObj.w, shieldObj.h);
+            ctx.save();
+            ctx.translate(shieldObj.x, shieldObj.y);
+            ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; 
+            ctx.strokeRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
+            ctx.fillRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
+            ctx.restore();
         }
         if (gravityObj) {
-            ctx.fillStyle = `rgba(150, 0, 255, 0.2)`;
-            ctx.beginPath(); ctx.arc(gravityObj.x, gravityObj.y, gravityObj.r, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.save(); ctx.translate(gravityObj.x, gravityObj.y);
+            ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; 
+            ctx.beginPath(); ctx.arc(0, 0, gravityObj.r, 0, Math.PI*2); ctx.stroke();
+            ctx.fillStyle = 'rgba(100,0,255,0.1)'; ctx.fill();
+            ctx.restore();
+        }
+        if (skills[12].active) {
+            ctx.save();
+            ctx.strokeStyle = 'white'; ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y - 30, 40, Math.PI, 0); 
+            ctx.stroke();
+            ctx.restore();
         }
 
         // [이펙트]
         explosions.forEach(e => {
-            ctx.fillStyle = `rgba(255, 100, 0, ${e.life/20})`;
-            ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+            ctx.save(); ctx.translate(e.x, e.y);
+            ctx.strokeStyle = 'orange'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
         });
 
         particles.forEach(p => {
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = p.life / 20;
+            ctx.fillStyle = p.color; ctx.globalAlpha = p.life / 50;
             ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-            ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = 1;
         });
 
         texts.forEach(t => {
-            ctx.fillStyle = t.color;
-            ctx.font = `bold ${t.size}px Arial`;
+            ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Arial`;
             ctx.fillText(t.text, t.x, t.y);
         });
     }
 
-    if (state === 'over') {
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(0,0,600,800);
-        ctx.fillStyle = 'red';
-        ctx.font = '50px Arial';
-        ctx.fillText("GAME OVER", 150, 400);
-        ctx.fillStyle = 'white';
-        ctx.font = '20px Arial';
-        ctx.fillText("Press R to Restart", 210, 450);
-        ctx.fillText(`Final Score: ${score}`, 220, 500);
+    if (state === 'over' || state === 'clear') {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,600,800);
+        ctx.fillStyle = '#fff'; ctx.font = '50px Courier'; ctx.textAlign='center';
+        
+        let title = state === 'clear' ? "VICTORY!" : "GAME OVER";
+        ctx.fillText(title, 300, 300);
+        
+        ctx.font = '24px Courier';
+        let survivalTime = (frame / 60).toFixed(1); 
+        ctx.fillText(`Survival Time: ${survivalTime}s`, 300, 380);
+        ctx.fillText(`Final Score: ${score}`, 300, 420);
+        
+        if (state === 'clear' && frame % 20 === 0) spawnParticles(Math.random()*600, Math.random()*600, `hsl(${Math.random()*360},100%,50%)`, 30, 5);
+        
+        ctx.fillStyle = '#aaa';
+        ctx.font = '20px Courier'; ctx.fillText("Press [R] to Retry", 300, 500);
     }
 }
 
@@ -1143,32 +1162,46 @@ function loop() {
 
 // 유틸리티
 function angleToP(obj) { return Math.atan2(player.y - obj.y, player.x - obj.x); }
+function resetGame() {
+    boss.hp = boss.maxHp; boss.phase = 1; score = 0; frame = 0;
+    player.hp = player.maxHp; player.invul = 0; player.slowTimer = 0; player.regenTimer = 0;
+    bullets.length=0; state='init'; patternTimer = 0; boss.transitioning = false; boss.freeze=false; boss.moveTimer=0;
+    boss.isChanneling = false;
+    timeScale = 1.0;
+    shieldObj = null; gravityObj = null; loopCount = 0;
+    afterimages = []; explosions = []; particles = []; texts = []; gameStateHistory = [];
+    for(let i=1; i<=12; i++) { if(skills[i]) { skills[i].timer = 0; skills[i].active = false; } }
+    
+    msgBox.style.display = 'none';
+    gameScreen.className = '';
+    gameScreen.style.filter = "";
+    clearAllPatterns(); 
+}
 
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
-    if (state === 'over' && e.code === 'KeyR') location.reload();
-    if (e.code === 'KeyG') { godMode = !godMode; debugPanel.style.display = godMode ? 'block' : 'none'; }
-    if (e.code === 'Digit1') useSkill(1);
-    if (e.code === 'Digit2') useSkill(2);
-    if (e.code === 'Digit3') useSkill(3);
-    if (e.code === 'Digit4') useSkill(4);
-    if (e.code === 'Digit5') useSkill(5);
-    if (e.code === 'Digit7') useSkill(7); 
-    if (e.code === 'KeyQ') useSkill(10);
-    if (e.code === 'KeyE') useSkill(11);
-    if (e.code === 'Space') useSkill(12);
-    
-    if (godMode) {
-        if(e.code === 'Numpad1') window.setPhase(1);
-        if(e.code === 'Numpad2') window.setPhase(2);
-        if(e.code === 'Numpad3') window.setPhase(3);
-        if(e.code === 'Numpad4') window.setPhase(4);
+    if (e.code === 'KeyR' && state !== 'play' && state !== 'countdown') resetGame();
+    if (e.code === 'KeyT') { 
+        godMode = !godMode; 
+        adminMsg.style.display = godMode ? 'block' : 'none'; 
+        debugPanel.style.display = godMode ? 'flex' : 'none';
     }
-    if (e.code === 'KeyV') showScoreLines = !showScoreLines;
-});
+    if (e.code === 'KeyV') { showScoreLines = !showScoreLines; }
+    if (e.code === 'Space') useSkill(12);
 
-window.addEventListener('keyup', e => {
-    keys[e.code] = false;
-});
+    if (e.code === 'Digit1') useSkill(1); if (e.code === 'Digit2') useSkill(2);
+    if (e.code === 'Digit3') useSkill(3); if (e.code === 'Digit4') useSkill(4);
+    if (e.code === 'Digit5') useSkill(5); 
+    if (e.code === 'Digit7') useSkill(7); 
+    if (e.code === 'Digit0') useSkill(10);
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') useSkill(11);
 
+    if (godMode) {
+        if (e.code === 'F1') setPhase(1);
+        if (e.code === 'F2') setPhase(2);
+        if (e.code === 'F3') setPhase(3);
+        if (e.code === 'F4') setPhase(4);
+    }
+});
+window.addEventListener('keyup', e=>keys[e.code]=false);
 loop();
