@@ -1,49 +1,80 @@
+// index.js
+
+// 1. Firebase 초기화
+const firebaseConfig = {
+    apiKey: "AIzaSyDbrsr6g0X6vKujfqBcFY0h--Rn3y1nCEI",
+    authDomain: "bin20703-edda7.firebaseapp.com",
+    databaseURL: "https://bin20703-edda7-default-rtdb.firebaseio.com",
+    projectId: "bin20703-edda7",
+    storageBucket: "bin20703-edda7.firebasestorage.app",
+    messagingSenderId: "242056223892",
+    appId: "1:242056223892:web:885b9bf54aa60ce7732881",
+    measurementId: "G-C2VDTXTVZQ"
+};
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+// 2. 초기 데이터 로드 (localStorage)
+const userNickname = localStorage.getItem('bossRush_nickname') || "Unknown";
+const rawSkills = localStorage.getItem('bossRush_skills');
+const userSelectedSkills = rawSkills ? JSON.parse(rawSkills) : []; // [id1, id2]
+
+// 플레이어 정보 표시
+document.getElementById('player-info').innerText = `PLAYER: ${userNickname}`;
+
+// 3. 캔버스 및 기본 변수 설정
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-// [복구] 도트 그래픽 느낌 (과거 코드 스타일)
-ctx.imageSmoothingEnabled = false; 
+ctx.imageSmoothingEnabled = false;
 
-// UI 엘리먼트 가져오기
+// UI 엘리먼트
 const uiHp = document.getElementById('boss-hp-bar');
 const uiHpText = document.getElementById('boss-hp-text');
 const scoreBox = document.getElementById('score-box');
 const hpBox = document.getElementById('hp-box');
 const msgBox = document.getElementById('msg-box');
 const adminMsg = document.getElementById('admin-msg');
-const gameScreen = document.getElementById('game-screen');
+const gameScreen = document.getElementById('game-wrapper'); // wrapper로 변경
 const debugPanel = document.getElementById('debug-panel');
 const dFps = document.getElementById('d-fps');
 const dHp = document.getElementById('d-hp');
 const dPhase = document.getElementById('d-phase');
 const dPatterns = document.getElementById('d-patterns');
+const sidePanel = document.getElementById('side-panel');
+const pauseOverlay = document.getElementById('pause-overlay');
 
-// 게임 전역 변수
-let frame = 0; 
+// 게임 상태 변수
+let frame = 0;
 let score = 0;
 let state = 'init'; // init, countdown, play, over
 let godMode = false;
-let timeScale = 1.0; 
+let hasCheated = false; // 치트 사용 기록
+let timeScale = 1.0;
 let isRewinding = false;
 let loopCount = 0;
 let lastTime = Date.now();
-let showScoreLines = false; 
+let showScoreLines = false;
 let countdownTimer = 0;
+let isPaused = false; // 일시정지 상태
+
+let gameStartTime = 0; // 플레이 시간 측정용
+let gameEndTime = 0;
 
 // 상태 저장 (시간 역행용)
 let gameStateHistory = [];
-const MAX_HISTORY = 60; 
-let historyTimer = 0;    
+const MAX_HISTORY = 60;
+let historyTimer = 0;
 
-const player = { 
-    x: 300, y: 700, r: 3, speed: 5, 
-    hp: 5, maxHp: 5, 
+const player = {
+    x: 300, y: 700, r: 3, speed: 5,
+    hp: 5, maxHp: 5,
     invul: 0, slowTimer: 0,
-    hitboxSize: 2, regenTimer: 0 
+    hitboxSize: 2, regenTimer: 0
 };
 
-const boss = { 
+const boss = {
     x: 300, y: 150, r: 30, baseR: 30,
-    hp: 10000, maxHp: 10000, 
+    hp: 10000, maxHp: 10000,
     phase: 1, angle: 0,
     transitioning: false, freeze: false, moveTimer: 0,
     patternCooldown: 0,
@@ -51,11 +82,11 @@ const boss = {
 };
 
 let bullets = [];
-let afterimages = []; 
-let explosions = []; 
+let afterimages = [];
+let explosions = [];
 let particles = [];
 let texts = [];
-let shieldObj = null; 
+let shieldObj = null;
 let gravityObj = null;
 
 const patternInternalCd = {};
@@ -63,65 +94,101 @@ const keys = {};
 let stars = [];
 for(let i=0; i<60; i++) stars.push({x:Math.random()*600, y:Math.random()*800, size:Math.random()*2, speed:Math.random()*3+1});
 
-// 스킬 설정
-const skills = {
-    1: { name: '무적', cd: 900, duration: 180, active: false, timer: 0 }, 
-    2: { name: '산데', cd: 1200, duration: 300, active: false, timer: 0 }, 
-    3: { name: '반사', cd: 600, duration: 6, active: false, timer: 0 }, 
-    4: { name: '방패', cd: 900, duration: 600, active: false, timer: 0 }, 
-    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, 
-    7: { name: '동결', cd: 1800, duration: 240, active: false, timer: 0 }, 
-    10: { name: '중력장', cd: 1200, duration: 300, active: false, timer: 0 }, 
-    11: { name: '리콜', cd: 420, duration: 0, active: false, timer: 0 },
-    12: { name: '패링', cd: 240, duration: 15, active: false, timer: 0 } 
+// 스킬 설정 (데이터)
+const skillsData = {
+    1: { name: '무적', cd: 900, duration: 180 },
+    2: { name: '산데', cd: 1200, duration: 300 },
+    3: { name: '반사', cd: 600, duration: 6 },
+    4: { name: '방패', cd: 900, duration: 600 },
+    5: { name: '레일건', cd: 600, duration: 30 },
+    7: { name: '동결', cd: 1800, duration: 240 },
+    10: { name: '중력장', cd: 1200, duration: 300 },
+    11: { name: '리콜', cd: 420, duration: 0 },
+    12: { name: '패링', cd: 240, duration: 15 } // 기본 스킬
 };
+
+// 실제 게임에서 사용할 스킬 객체 초기화
+const skills = {};
+
+// 스킬 UI 생성 및 active 스킬 등록 함수
+function initSkills() {
+    // 1. 기본 패링 (Space) 등록
+    skills[12] = { ...skillsData[12], active: false, timer: 0, key: 'Space' };
+    createSkillUI(12, 'Space');
+
+    // 2. 유저 선택 스킬 (Z, X) 등록
+    if (userSelectedSkills.length > 0) {
+        const id1 = userSelectedSkills[0];
+        skills[id1] = { ...skillsData[id1], active: false, timer: 0, key: 'Z' };
+        createSkillUI(id1, 'Z');
+    }
+    if (userSelectedSkills.length > 1) {
+        const id2 = userSelectedSkills[1];
+        skills[id2] = { ...skillsData[id2], active: false, timer: 0, key: 'X' };
+        createSkillUI(id2, 'X');
+    }
+}
+
+function createSkillUI(id, keyName) {
+    const s = skills[id];
+    const div = document.createElement('div');
+    div.id = `skill-${id}`;
+    div.className = 'skill-slot';
+    div.innerHTML = `
+        <div class="skill-key">${keyName}</div>
+        <div style="font-weight:bold; font-size:14px;">${s.name}</div>
+        <div class="cooldown-bar"><div class="cooldown-fill"></div></div>
+    `;
+    sidePanel.appendChild(div);
+}
+
+// 초기화 실행
+initSkills();
 
 const patternNames = {
     1: "Spiral", 2: "Ring", 3: "Aimed", 4: "Windmill", 5: "Rain", 6: "Accel",
     7: "Giant Bounce", 8: "Snipe", 9: "DNA", 10: "Giant Bomb", 11: "Giant Fan",
-    12: "Aimed Laser", 13: "Homing", 15: "Trap", 
+    12: "Aimed Laser", 13: "Homing", 15: "Trap",
     16: "Spin Laser", 17: "Aimed Thunder", 18: "Weak Thunder",
     19: "Time Stop", 20: "White Laser", 21: "Satellite Shield"
 };
 
-// [복구] 과거 코드의 색상 함수
+// 색상 및 유틸 함수들 (원본 유지)
 function getPhaseColor() {
     if (boss.phase === 1) return '#00ccff';
     if (boss.phase === 2) return '#ff3333';
     if (boss.phase === 3) return '#aa00ff';
-    if (boss.phase === 4) return '#ffffff'; 
+    if (boss.phase === 4) return '#ffffff';
     return '#ffffff';
 }
-
 function getBulletColor() {
     if (boss.phase === 1) return '#ff9999';
-    if (boss.phase === 2) return '#66ff66'; 
-    if (boss.phase === 3) return '#ffff66'; 
+    if (boss.phase === 2) return '#66ff66';
+    if (boss.phase === 3) return '#ffff66';
     if (boss.phase === 4) return '#888888';
     return '#ff0000';
 }
-
 function getScoreMultiplier() {
-    if (player.y <= 420) return 5; 
-    if (player.y <= 520) return 4; 
-    if (player.y <= 650) return 3; 
-    if (player.y <= 740) return 2; 
-    return 1;                       
+    if (player.y <= 420) return 5;
+    if (player.y <= 520) return 4;
+    if (player.y <= 650) return 3;
+    if (player.y <= 740) return 2;
+    return 1;
 }
 
 window.setPhase = function(p) {
     boss.phase = p;
     if (p === 1) boss.hp = boss.maxHp;
-    if (p === 2) boss.hp = boss.maxHp * 0.75; 
+    if (p === 2) boss.hp = boss.maxHp * 0.75;
     if (p === 3) boss.hp = boss.maxHp * 0.50;
-    if (p === 4) boss.hp = boss.maxHp * 0.25; 
+    if (p === 4) boss.hp = boss.maxHp * 0.25;
 
     clearAllPatterns();
     bullets = [];
-    boss.transitioning = false; 
+    boss.transitioning = false;
     boss.freeze = false;
     boss.isChanneling = false;
-    gameScreen.className = ''; 
+    gameScreen.className = '';
     gameScreen.style.filter = '';
     
     if(p===2) startPhase2();
@@ -153,26 +220,26 @@ function spawnParticles(x, y, color, count, speed) {
         particles.push({ x: x, y: y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, life: 20+Math.random()*15, color: color, size: Math.random()*2+1 });
     }
 }
-
 function spawnText(x, y, text, color, size) {
-    if (texts.length > 100) texts.shift(); 
+    if (texts.length > 100) texts.shift();
     let rx = x + (Math.random() - 0.5) * 40;
     let ry = y + (Math.random() - 0.5) * 20;
     texts.push({ x: rx, y: ry, text: text, color: color, size: size, life: 40, vy: -1.0 });
 }
 
 function shoot(p) {
+    // (원본 shoot 함수 내용 유지 - 생략 없이 그대로 사용)
     let width = p.w || 0;
     if (p.isLaser) {
-        width = 4000; 
+        width = 4000;
         if (boss.phase >= 3) p.h = (p.h || 20) * 1.5;
     }
     let color = (p.isLaser) ? getPhaseColor() : (p.c || getBulletColor());
-    if (boss.phase === 4 && p.isLaser && p.c) color = p.c; 
+    if (boss.phase === 4 && p.isLaser && p.c) color = p.c;
     
     let speedVal = Math.abs(p.s);
-    let calcLife = 1200 - (speedVal * 80); 
-    if (calcLife < 400) calcLife = 400; 
+    let calcLife = 1200 - (speedVal * 80);
+    if (calcLife < 400) calcLife = 400;
     if (p.lifeTime) calcLife = p.lifeTime;
 
     let isGiant = (!p.isLaser && (p.r >= 15));
@@ -185,10 +252,10 @@ function shoot(p) {
         x: p.x, y: p.y, speed: p.s, angle: p.a,
         r: p.r || 4, color: color,
         accel: p.accel || 0, curve: p.curve || 0, homing: p.homing || 0,
-        isLaser: p.isLaser || false, w: width, h: p.h || 20, 
-        warnTime: p.warnTime || 0, activeTime: p.activeTime || 30, 
-        lifeTime: p.homing ? 300 : calcLife, timer: 0, 
-        bounce: p.bounce || 0, delay: p.delay || 0, grazed: false, 
+        isLaser: p.isLaser || false, w: width, h: p.h || 20,
+        warnTime: p.warnTime || 0, activeTime: p.activeTime || 30,
+        lifeTime: p.homing ? 300 : calcLife, timer: 0,
+        bounce: p.bounce || 0, delay: p.delay || 0, grazed: false,
         isEnemy: p.isEnemy !== undefined ? p.isEnemy : true,
         damage: p.damage || 3,
         isBossShield: p.isBossShield || false,
@@ -198,70 +265,70 @@ function shoot(p) {
         isRailgun: p.isRailgun || false,
         isGravityCounter: p.isGravityCounter || false,
         scoreVal: p.scoreVal || 0,
-        hasHitBoss: p.hasHitBoss || false, 
+        hasHitBoss: p.hasHitBoss || false,
         hp: bulletHp, maxHp: bulletHp, isGiant: isGiant
     });
 }
-
 function bossShoot(p) {
     if (p.x === undefined) shoot({ ...p, x: boss.x, y: boss.y });
     else shoot(p);
 }
 
+// 패턴 로직 (원본 유지 - 생략)
 const patterns = {
     1: () => { if(!boss.isChanneling) boss.freeze=false; for(let i=0; i<6; i++) bossShoot({a:boss.angle+i*1.0, s:2.0}); boss.angle+=0.1; },
     2: () => { if(!boss.isChanneling) boss.freeze=false; for(let i=0; i<16; i++) bossShoot({a:Math.PI*2/16*i, s:1.5}); },
-    3: () => { if(!boss.isChanneling) boss.freeze=true;  let aim=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:aim+i*0.2, s:3.0}); }, 
+    3: () => { if(!boss.isChanneling) boss.freeze=true;  let aim=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:aim+i*0.2, s:3.0}); },
     4: () => { if(!boss.isChanneling) boss.freeze=false; bossShoot({a:boss.angle, s:2.0, curve:0.01}); bossShoot({a:boss.angle+Math.PI, s:2.0, curve:0.01}); boss.angle+=0.15; },
-    5: () => { if(!boss.isChanneling) boss.freeze=false; shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:2.0}); }, 
-    6: () => { if(!boss.isChanneling) boss.freeze=true;  let a=angleToP(boss); bossShoot({a:a, s:1.5, accel:0.03}); }, 
-    7: () => { 
+    5: () => { if(!boss.isChanneling) boss.freeze=false; shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:2.0}); },
+    6: () => { if(!boss.isChanneling) boss.freeze=true;  let a=angleToP(boss); bossShoot({a:a, s:1.5, accel:0.03}); },
+    7: () => {
         if(!boss.isChanneling) boss.freeze=false;
-        for(let i=0; i<3; i++) bossShoot({a:Math.PI*2/3*i+boss.angle, s:3.0, r:20, bounce:1, accel:-0.01}); 
-        boss.angle+=0.05; 
-    }, 
-    8: () => { if(!boss.isChanneling) boss.freeze=true; bossShoot({a:angleToP(boss), s:6, r:30, warnTime:60}); }, 
+        for(let i=0; i<3; i++) bossShoot({a:Math.PI*2/3*i+boss.angle, s:3.0, r:20, bounce:1, accel:-0.01});
+        boss.angle+=0.05;
+    },
+    8: () => { if(!boss.isChanneling) boss.freeze=true; bossShoot({a:angleToP(boss), s:6, r:30, warnTime:60}); },
     9: () => { if(!boss.isChanneling) boss.freeze=false; for(let i=0; i<2; i++) bossShoot({a:boss.angle+Math.PI*i*0.8, s:4.0, r:15, curve:0.02}); boss.angle+=0.1; },
-    10: () => { 
+    10: () => {
         if(!boss.isChanneling) boss.freeze=false;
         let bx = Math.random()*600, by = Math.random()*300;
         let aimA = Math.atan2(player.y - by, player.x - bx);
-        shoot({x:bx, y:by, a:aimA, s:0, accel:0.1, r:25, warnTime:50}); 
+        shoot({x:bx, y:by, a:aimA, s:0, accel:0.1, r:25, warnTime:50});
     },
     11: () => { if(!boss.isChanneling) boss.freeze=true;
         let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.5, s:4.5, r:18, bounce:1});
-    }, 
-    12: () => { 
+    },
+    12: () => {
         if(!boss.isChanneling) boss.freeze=false;
         for(let i=0; i<5; i++) {
             setTimeout(() => {
-                let aim = angleToP(boss); 
+                let aim = angleToP(boss);
                 shoot({x:boss.x, y:boss.y, a:aim, s:0, w:4000, h:15, isLaser:true, warnTime:30, activeTime:15});
             }, i*120);
         }
-    }, 
-    13: () => { if(!boss.isChanneling) boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); }, 
+    },
+    13: () => { if(!boss.isChanneling) boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); },
     15: () => { if(!boss.isChanneling) boss.freeze=true;  let r=200;
         for(let i=0; i<8; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2.0, accel:0.05, homing:0.01, warnTime:40});
-    }, 
-    16: () => { 
-        if(patternInternalCd[16] > 0) return; 
-        patternInternalCd[16] = 500; 
-        boss.freeze = true; 
+    },
+    16: () => {
+        if(patternInternalCd[16] > 0) return;
+        patternInternalCd[16] = 500;
+        boss.freeze = true;
         boss.isChanneling = true;
-        let startAngle = angleToP(boss); 
-        let direction = Math.random() < 0.5 ? 1 : -1; 
+        let startAngle = angleToP(boss);
+        let direction = Math.random() < 0.5 ? 1 : -1;
         for(let i=0; i<4; i++) {
             shoot({x:boss.x, y:boss.y, a:startAngle + (Math.PI/2)*i, s:0, w:4000, h:15, isLaser:true, warnTime:60, activeTime:120, curve: 0.005 * direction});
         }
-        setTimeout(() => { boss.isChanneling = false; boss.freeze = false; }, 3500); 
-    }, 
-    17: () => { 
-        if(!boss.isChanneling) boss.freeze=false; 
+        setTimeout(() => { boss.isChanneling = false; boss.freeze = false; }, 3500);
+    },
+    17: () => {
+        if(!boss.isChanneling) boss.freeze=false;
         for(let i=0; i<3; i++) {
             setTimeout(() => {
-                let sx = Math.random()*600; let sy = Math.random()*100 - 400; 
-                let angle = Math.atan2(player.y - sy, player.x - sx); 
+                let sx = Math.random()*600; let sy = Math.random()*100 - 400;
+                let angle = Math.atan2(player.y - sy, player.x - sx);
                 shoot({x:sx, y:sy, a:angle, s:0, w:5000, h:40, isLaser:true, warnTime:60, activeTime:30});
             }, i*200);
         }
@@ -270,219 +337,179 @@ const patterns = {
         if(!boss.isChanneling) boss.freeze=false;
         for(let i=0; i<8; i++) {
             setTimeout(() => {
-                let sx = Math.random()*600; let sy = Math.random()*100 - 400; 
+                let sx = Math.random()*600; let sy = Math.random()*100 - 400;
                 let angle = Math.atan2(player.y - sy, player.x - sx);
                 shoot({x:sx, y:sy, a:angle, s:0, w:5000, h:15, isLaser:true, warnTime:40, activeTime:20, damage: 1});
-            }, i * 100); 
+            }, i * 100);
         }
     },
     19: () => { boss.freeze=true; let count=24;
         for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, c: boss.phase===4 ? '#888' : '#fff', delay: 30}); setTimeout(() => boss.freeze=false, 500);
     },
-    20: () => { 
+    20: () => {
         if(patternInternalCd[20] > 0) return;
-        patternInternalCd[20] = 400; 
+        patternInternalCd[20] = 400;
         boss.freeze = true; boss.isChanneling = true;
         let startAngle = angleToP(boss);
         let direction = Math.random() < 0.5 ? 1 : -1;
-        let laserColor = '#fff'; 
+        let laserColor = '#fff';
         shoot({x:boss.x, y:boss.y, a:startAngle, s:0, c:laserColor, w:4000, h:30, isLaser:true, warnTime:30, activeTime:90, curve: 0.01 * direction});
-        shoot({x:boss.x, y:boss.y, a:startAngle+Math.PI, s:0, c:laserColor, w:4000, h:30, isLaser:true, warnTime:30, activeTime:90, curve: 0.01 * direction}); 
+        shoot({x:boss.x, y:boss.y, a:startAngle+Math.PI, s:0, c:laserColor, w:4000, h:30, isLaser:true, warnTime:30, activeTime:90, curve: 0.01 * direction});
         boss.angle += 0.2;
         setTimeout(() => { boss.isChanneling = false; boss.freeze = false; }, 3000);
     },
-    21: () => {} 
+    21: () => {}
 };
 
 let patternTimer = 0;
 let activePatterns = [];
 
+// pickPatterns 함수 (원본 유지)
 function pickPatterns() {
     activePatterns = [];
     let p = boss.phase;
     let count = 1;
 
-    if (p === 1) {
-        if (Math.random() < 0.1) count = 1; 
-    } 
-    else if (p === 2) {
-        count = Math.random() < 0.7 ? 2 : 1;
-    } 
-    else if (p === 3) {
-        // [유지] 3페이즈 난이도 강화 (최소 3개)
-        count = Math.random() < 0.3 ? 4 : 3;
-    } 
+    if (p === 1) { if (Math.random() < 0.1) count = 1; }
+    else if (p === 2) { count = Math.random() < 0.7 ? 2 : 1; }
+    else if (p === 3) { count = Math.random() < 0.3 ? 4 : 3; }
     else if (p === 4) {
         let rnd = Math.random();
-        if (rnd < 0.10) count = 5;      
-        else if (rnd < 0.50) count = 4; 
-        else count = 3;                 
+        if (rnd < 0.10) count = 5;
+        else if (rnd < 0.50) count = 4;
+        else count = 3;
     }
-    
+
     let pool = [];
-    if (p === 1) pool = [1,2,3,4,5,6]; 
-    if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11]; 
-    if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,15,16,17]; 
+    if (p === 1) pool = [1,2,3,4,5,6];
+    if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11];
+    if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,15,16,17];
     if (p === 4) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,12, 15,16,17,18, 19,20];
 
-    for(let k in patternInternalCd) {
-        if(patternInternalCd[k] > 0) patternInternalCd[k] -= 200; 
-    }
+    for(let k in patternInternalCd) { if(patternInternalCd[k] > 0) patternInternalCd[k] -= 200; }
 
     if (pool.length > 0) {
         for(let i=0; i<count; i++) {
             let idx = Math.floor(Math.random() * pool.length);
             activePatterns.push(pool[idx]);
         }
-    } else {
-        activePatterns.push(1);
-    }
+    } else { activePatterns.push(1); }
 }
 
 function clearAllPatterns() {
-    bullets = bullets.filter(b => !b.isEnemy); 
-    activePatterns = []; 
+    bullets = bullets.filter(b => !b.isEnemy);
+    activePatterns = [];
     boss.freeze = false;
     boss.isChanneling = false;
     for(let k in patternInternalCd) patternInternalCd[k] = 0;
 }
 
+// 상태 저장 함수
 function saveGameState() {
     if (state !== 'play' || isRewinding) return;
     historyTimer++;
-    if (historyTimer < 5) return; 
+    if (historyTimer < 5) return;
     historyTimer = 0;
 
     let snapshot = {
         player: { x: player.x, y: player.y, hp: player.hp },
         boss: { x: boss.x, y: boss.y, hp: boss.hp, phase: boss.phase, r: boss.r },
-        bullets: bullets.map(b => ({...b})), 
+        bullets: bullets.map(b => ({...b})),
         score: score,
         shieldObj: shieldObj ? { ...shieldObj } : null,
         gravityObj: gravityObj ? { ...gravityObj } : null,
-        afterimages: [], 
         loopCount: loopCount,
-        frame: frame 
+        frame: frame
     };
     gameStateHistory.push(snapshot);
     if (gameStateHistory.length > MAX_HISTORY) gameStateHistory.shift();
 }
 
-function restoreGameState() {
-    if (gameStateHistory.length === 0) return;
-    let snapshot = gameStateHistory[0]; 
-    player.x = snapshot.player.x; player.y = snapshot.player.y;
-    player.hp = snapshot.player.hp; player.invul = 60; 
-    boss.x = snapshot.boss.x; boss.y = snapshot.boss.y;
-    boss.hp = snapshot.boss.hp; boss.phase = snapshot.boss.phase; boss.r = snapshot.boss.r;
-    bullets = snapshot.bullets.map(b => ({...b})); score = snapshot.score;
-    shieldObj = snapshot.shieldObj ? { ...snapshot.shieldObj } : null;
-    gravityObj = snapshot.gravityObj ? { ...snapshot.gravityObj } : null;
-    loopCount = snapshot.loopCount;
-    frame = snapshot.frame;
-    
-    gameStateHistory = []; 
-    msgBox.style.display = 'block'; msgBox.innerText = "TIME REWIND!"; msgBox.style.color = '#a0f';
-    gameScreen.className = 'rewind-effect';
-    setTimeout(() => { msgBox.style.display = 'none'; gameScreen.className = ''; }, 1000);
-}
-
+// 스킬 사용 로직 (업데이트됨: activeSkills에 있는 것만 사용 가능)
 function useSkill(id) {
-    if (state !== 'play' || skills[id] === undefined || skills[id].timer > 0 || isRewinding) return;
-    if (id === 11) {
+    if (state !== 'play' || isRewinding || isPaused) return;
+    if (!skills[id]) return; // 가지고 있지 않은 스킬
+
+    const s = skills[id];
+    if (s.timer > 0) return; // 쿨타임 중
+
+    if (id === 11) { // 리콜
         if(gameStateHistory.length > 0) {
-            skills[id].timer = skills[id].cd;
+            s.timer = s.cd;
             isRewinding = true;
             gameScreen.className = 'rewind-effect';
             msgBox.style.display = 'block'; msgBox.innerText = "REWINDING..."; msgBox.style.color = '#fff';
         }
         return;
     }
-    skills[id].active = true;
-    skills[id].timer = skills[id].cd;
-    skills[id].activeTimer = skills[id].duration;
 
+    s.active = true;
+    s.timer = s.cd;
+    s.activeTimer = s.duration;
+
+    // 즉발 효과들
     if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
-    if (id === 5) { 
-        // [유지] 레일건 단타 70데미지
-        shoot({ 
-            x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, 
-            w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, 
-            c: 'cyan', isEnemy: false, 
-            damage: 70, isRailgun: true, scoreVal: 80, hasHitBoss: false 
+    if (id === 5) {
+        shoot({
+            x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0,
+            w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10,
+            c: 'cyan', isEnemy: false,
+            damage: 70, isRailgun: true, scoreVal: 80, hasHitBoss: false
         });
         player.y = Math.min(790, player.y + 30);
-        spawnParticles(player.x, player.y-20, 'cyan', 40, 8); 
+        spawnParticles(player.x, player.y-20, 'cyan', 40, 8);
         gameScreen.classList.add('shake-effect');
         setTimeout(() => gameScreen.classList.remove('shake-effect'), 200);
     }
     if (id === 10) gravityObj = { x: player.x, y: player.y, r: 200, absorbed: 0 };
-    
-    if (id === 12) {
-        spawnParticles(player.x, player.y - 30, '#fff', 30, 6);
-    }
-}
-
-function createExplosion(x, y, radius) {
-    explosions.push({x: x, y: y, r: 0, maxR: radius, life: 20});
-    spawnParticles(x, y, 'orange', 20, 3); 
-    let rSq = radius * radius;
-    bullets.forEach(b => {
-        if(b.isEnemy && !b.dead && !b.isLaser) {
-            let dx = b.x - x; let dy = b.y - y;
-            if (dx*dx + dy*dy < rSq) {
-                b.dead = true;
-                spawnParticles(b.x, b.y, b.color, 4, 2);
-            }
-        }
-    });
+    if (id === 12) spawnParticles(player.x, player.y - 30, '#fff', 30, 6);
 }
 
 function updateSkills() {
-    [1, 2, 3, 4, 5, 7, 10, 11, 12].forEach(i => {
-        let s = skills[i];
+    for (const id in skills) {
+        let s = skills[id];
         if (s.timer > 0) s.timer--;
         if (s.activeTimer > 0) {
             s.activeTimer--;
             if (s.activeTimer <= 0) {
                 s.active = false;
-                if (i===4) shieldObj = null;
-                if (i===10 && gravityObj) { 
-                    // [유지] 중력장 밸런스
-                    let dmg = Math.min(gravityObj.absorbed * 1.4, 100); 
-                    let scoreBonus = Math.min(gravityObj.absorbed * 1.4, 200); 
-
+                if (id == 4) shieldObj = null;
+                if (id == 10 && gravityObj) {
+                    let dmg = Math.min(gravityObj.absorbed * 1.4, 100);
+                    let scoreBonus = Math.min(gravityObj.absorbed * 1.4, 200);
                     let angleToBoss = Math.atan2(boss.y - gravityObj.y, boss.x - gravityObj.x);
                     shoot({
-                        x: gravityObj.x, y: gravityObj.y, a: angleToBoss, 
+                        x: gravityObj.x, y: gravityObj.y, a: angleToBoss,
                         s: 15, r: 60, c: '#a0f', isEnemy: false, damage: dmg,
-                        isGravityCounter: true, scoreVal: scoreBonus 
+                        isGravityCounter: true, scoreVal: scoreBonus
                     });
                     spawnParticles(gravityObj.x, gravityObj.y, '#a0f', 50, 10);
                     gravityObj = null;
                 }
             }
         }
-        let skillEl = document.getElementById(`skill-${i}`);
+        
+        // UI 업데이트
+        let skillEl = document.getElementById(`skill-${id}`);
         if(skillEl) {
             if(s.active) skillEl.classList.add('active'); else skillEl.classList.remove('active');
             let cdPer = s.timer > 0 ? (s.timer / s.cd * 100) : 0;
-            skillEl.querySelector('.cooldown').style.height = `${cdPer}%`;
+            skillEl.querySelector('.cooldown-fill').style.width = `${cdPer}%`;
         }
-    });
+    }
 
-    if (skills[2].active) { timeScale = 0.2; gameScreen.classList.add('invert-effect'); } 
-    else if (skills[7].active) { timeScale = 0; gameScreen.style.filter = "grayscale(100%)"; }
-    else { 
+    if (skills[2] && skills[2].active) { timeScale = 0.2; gameScreen.classList.add('invert-effect'); }
+    else if (skills[7] && skills[7].active) { timeScale = 0; gameScreen.style.filter = "grayscale(100%)"; }
+    else {
         gameScreen.classList.remove('invert-effect');
-        if (boss.phase !== 4) gameScreen.style.filter = ""; 
+        if (boss.phase !== 4) gameScreen.style.filter = "";
         timeScale = 1.0;
     }
 }
 
+// 페이즈 전환 및 시작 함수들 (원본 유지)
 function checkPhaseTransition(newPhase) {
     if (boss.transitioning || boss.phase === newPhase) return;
-    
     let bonus = 0;
     if(newPhase === 2) bonus = 800;
     if(newPhase === 3) bonus = 1000;
@@ -491,25 +518,23 @@ function checkPhaseTransition(newPhase) {
         score += bonus;
         spawnText(player.x, player.y - 40, `BONUS +${bonus}`, '#ffd700', 20);
     }
-
     boss.transitioning = true;
     boss.freeze = true;
-    boss.isChanneling = false; 
+    boss.isChanneling = false;
     clearAllPatterns();
     gameScreen.classList.add('warning-pulse');
     msgBox.style.display = 'block';
     msgBox.innerText = `PHASE ${newPhase} INCOMING...`;
     msgBox.style.color = 'red';
-    setTimeout(() => { 
-        boss.phase = newPhase; 
-        if(newPhase === 2) startPhase2(); 
-        else if(newPhase === 3) startPhase3(); 
-        else if(newPhase === 4) startPhase4(); 
-        gameScreen.classList.remove('warning-pulse'); 
-        boss.freeze = false; 
+    setTimeout(() => {
+        boss.phase = newPhase;
+        if(newPhase === 2) startPhase2();
+        else if(newPhase === 3) startPhase3();
+        else if(newPhase === 4) startPhase4();
+        gameScreen.classList.remove('warning-pulse');
+        boss.freeze = false;
     }, 2000);
 }
-
 function startPhase2() {
     msgBox.innerText = "PHASE 2: GIGANTIC"; msgBox.style.color = 'red';
     gameScreen.classList.add('shake-effect');
@@ -519,7 +544,6 @@ function startPhase2() {
         for(let i=0; i<20; i++) shoot({x:boss.x, y:boss.y, a:Math.random()*7, s:Math.random()*3+2, c:'#ffaa00', r:12});
     }, 500);
 }
-
 function startPhase3() {
     msgBox.innerText = "PHASE 3: SPEED"; msgBox.style.color = '#a0f';
     gameScreen.classList.add('shake-effect');
@@ -533,76 +557,47 @@ function startPhase3() {
         }
     }, 1000);
 }
-
 function startPhase4() {
-    msgBox.innerText = ""; 
-    msgBox.style.display = 'none';
-    
+    msgBox.innerText = ""; msgBox.style.display = 'none';
     gameScreen.style.filter = "grayscale(100%) contrast(1.2)";
     gameScreen.classList.add('glitch-effect');
-
-    boss.freeze = true;
-    boss.isChanneling = true;
-    boss.x = 300; boss.y = 100;
-
-    setTimeout(() => {
-        boss.r = 40; 
-        spawnParticles(boss.x, boss.y, '#fff', 50, 15);
-        gameScreen.classList.remove('glitch-effect'); 
-    }, 500);
-
-    setTimeout(() => {
-        shoot({
-            x: 300, y: 100, 
-            a: Math.PI/2, 
-            s: 0, 
-            w: 4000, 
-            h: 360, 
-            isLaser: true, 
-            warnTime: 60, 
-            activeTime: 90, 
-            c: '#fff', 
-            damage: 999 
-        });
-    }, 1000);
-
-    setTimeout(() => { 
-        boss.transitioning = false; 
-        boss.freeze = false;
-        boss.isChanneling = false;
-    }, 4500);
+    boss.freeze = true; boss.isChanneling = true; boss.x = 300; boss.y = 100;
+    setTimeout(() => { boss.r = 40; spawnParticles(boss.x, boss.y, '#fff', 50, 15); gameScreen.classList.remove('glitch-effect'); }, 500);
+    setTimeout(() => { shoot({ x: 300, y: 100, a: Math.PI/2, s: 0, w: 4000, h: 360, isLaser: true, warnTime: 60, activeTime: 90, c: '#fff', damage: 999 }); }, 1000);
+    setTimeout(() => { boss.transitioning = false; boss.freeze = false; boss.isChanneling = false; }, 4500);
 }
 
 function startCountdownSequence() {
     state = 'countdown';
-    countdownTimer = 300; 
+    countdownTimer = 180; // 3초 (60프레임 기준)
     msgBox.style.display = 'block';
     msgBox.style.color = 'cyan';
     gameScreen.style.filter = 'brightness(0.5)';
 }
 
+// 메인 루프 (Update)
 function update() {
     if (state === 'init') {
         startCountdownSequence();
         return;
     }
-    
     if (state === 'countdown') {
         countdownTimer--;
         let seconds = Math.ceil(countdownTimer / 60);
         msgBox.innerText = seconds > 0 ? seconds : "START!";
-        
         if (countdownTimer <= 0) {
             state = 'play';
+            gameStartTime = Date.now(); // 시간 측정 시작
             msgBox.style.display = 'none';
             gameScreen.style.filter = '';
         }
         return;
     }
 
-    if (boss.phase === 4 && boss.isChanneling && boss.transitioning) {
-        boss.x = 300; boss.y = 100;
-    }
+    // 일시정지 상태면 업데이트 중단
+    if (isPaused) return;
+
+    if (boss.phase === 4 && boss.isChanneling && boss.transitioning) { boss.x = 300; boss.y = 100; }
 
     if (isRewinding) {
         if (gameStateHistory.length > 0) {
@@ -626,10 +621,10 @@ function update() {
 
     if (state !== 'play') return;
     saveGameState();
-    frame++; 
+    frame++;
     updateSkills();
     if(godMode) updateDebugPanel();
-    
+
     if (player.invul > 0) player.invul--;
     if (player.slowTimer > 0) player.slowTimer--;
     
@@ -640,15 +635,15 @@ function update() {
     }
 
     stars.forEach(s => {
-        let warp = (skills[2].active || boss.phase >= 3) ? 5 : 1;
+        let warp = (skills[2] && skills[2].active || boss.phase >= 3) ? 5 : 1;
         s.y += s.speed * warp * timeScale;
         if(s.y > 800) { s.y = 0; s.x = Math.random() * 600; }
     });
 
-    let skillSpeedMod = skills[1].active ? 0.2 : 1.0;
+    let skillSpeedMod = (skills[1] && skills[1].active) ? 0.2 : 1.0;
     let baseSpd = (keys['ShiftLeft']||keys['ShiftRight'] ? 2 : 5) * (player.slowTimer > 0 ? 0.5 : 1) * skillSpeedMod;
 
-    if (skills[2].active) {
+    if (skills[2] && skills[2].active) {
         if (frame % 3 === 0 && (keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown'])) {
             afterimages.push({x: player.x, y: player.y, alpha: 0.8});
         }
@@ -662,7 +657,7 @@ function update() {
     if(keys['ArrowUp'] && player.y>5) player.y-=baseSpd;
     if(keys['ArrowDown'] && player.y<795) player.y+=baseSpd;
     
-    if (!skills[2].active && !skills[5].active && frame % 5 === 0) {
+    if ((!skills[2] || !skills[2].active) && (!skills[5] || !skills[5].active) && frame % 5 === 0) {
         let aimA = -Math.PI/2;
         shoot({x:player.x-10, y:player.y, a:aimA, s:15, r:3, c:'#afa', isEnemy:false});
         shoot({x:player.x+10, y:player.y, a:aimA, s:15, r:3, c:'#afa', isEnemy:false});
@@ -685,7 +680,6 @@ function update() {
             if (patterns[pat]) {
                 if (!patterns[pat].cooldown) patterns[pat].cooldown = 0;
                 patterns[pat].cooldown -= timeScale;
-
                 if (patterns[pat].cooldown <= 0) {
                     let freq = 10;
                     if ([7, 8, 10, 11, 12, 15, 16, 17, 18, 19, 20, 21].includes(pat)) freq = 200; 
@@ -700,23 +694,11 @@ function update() {
         loopCount++;
         score += 1500;
         spawnText(player.x, player.y - 60, "LOOP CLEAR +1500", '#0ff', 25);
-        
-        boss.hp = boss.maxHp; 
-        boss.phase = 1;
-        boss.transitioning = false;
-        
-        msgBox.style.display = 'block';
-        msgBox.innerText = `LOOP ${loopCount} START!`;
-        msgBox.style.color = '#fff';
-        
+        boss.hp = boss.maxHp; boss.phase = 1; boss.transitioning = false;
+        msgBox.style.display = 'block'; msgBox.innerText = `LOOP ${loopCount} START!`; msgBox.style.color = '#fff';
         spawnParticles(boss.x, boss.y, 'white', 50, 10);
-        clearAllPatterns();
-        bullets = []; 
-        gameScreen.style.filter = "";
-        
-        setTimeout(() => {
-            startCountdownSequence();
-        }, 1000);
+        clearAllPatterns(); bullets = []; gameScreen.style.filter = "";
+        setTimeout(() => { startCountdownSequence(); }, 1000);
     }
 
     let hpR = boss.hp/boss.maxHp;
@@ -725,34 +707,28 @@ function update() {
     else if (hpR <= 0.50) newPhase = 3;
     else if (hpR <= 0.75) newPhase = 2;
 
-    if(boss.phase !== newPhase && !boss.transitioning) {
-        checkPhaseTransition(newPhase);
-    }
-
-    // [복구] 보스 크기 고정 (고무줄 제거)
+    if(boss.phase !== newPhase && !boss.transitioning) { checkPhaseTransition(newPhase); }
     boss.r = boss.baseR;
     
     uiHp.style.width = (hpR*100)+'%';
     uiHpText.innerText = `${Math.ceil(boss.hp)} / ${boss.maxHp}`;
     let color = getPhaseColor();
     uiHp.style.background = color;
-    
     scoreBox.innerText = `SCORE: ${score}`;
     let fullHearts = "♥".repeat(Math.floor(player.hp));
     let halfHeart = (player.hp % 1 !== 0) ? "♡" : "";
     hpBox.innerText = fullHearts + halfHeart;
 
+    // 탄막 업데이트 로직 (원본 내용 유지)
     for (let i=0; i<bullets.length; i++) {
         let b = bullets[i];
         if(b.dead) continue;
-
         let localTimeScale = b.isEnemy ? timeScale : 1.0;
-        if (skills[7].active && !b.isEnemy) localTimeScale = 0;
+        if (skills[7] && skills[7].active && !b.isEnemy) localTimeScale = 0;
 
         b.timer += localTimeScale;
         if (b.lifeTime && b.timer > b.lifeTime) { b.dead = true; continue; }
         if (b.isLaser && b.timer > b.warnTime + b.activeTime) { b.dead = true; continue; }
-
         if (b.warnTime > 0 && b.timer < b.warnTime) {
             if(b.homing && b.isEnemy) {
                 let target = b.isEnemy ? player : boss;
@@ -763,11 +739,7 @@ function update() {
 
         if(b.accel) b.speed += b.accel * localTimeScale;
         if(b.delay > 0) { b.delay -= localTimeScale; continue; }
-        
-        if (b.isGiant) {
-            b.y += 0.3 * localTimeScale;
-        }
-
+        if (b.isGiant) { b.y += 0.3 * localTimeScale; }
         if(b.homing) {
             let target = b.isEnemy ? player : boss;
             let targetA = Math.atan2(target.y - b.y, target.x - b.x);
@@ -786,50 +758,35 @@ function update() {
         if(b.x<-1000 || b.x>1500 || b.y<-1000 || b.y>1500) b.dead = true; 
 
         if (b.isEnemy) {
-            let dx = b.x - player.x;
-            let dy = b.y - player.y;
-            let distSq = dx*dx + dy*dy;
+            let dx = b.x - player.x; let dy = b.y - player.y; let distSq = dx*dx + dy*dy;
 
-            if (skills[12].active) {
+            if (skills[12] && skills[12].active) {
                 if (Math.abs(dx) < 36 && b.y < player.y && b.y > player.y - 60) {
                      if (!b.isLaser) {
-                         b.dead = true;
-                         score += 50; 
-                         spawnParticles(b.x, b.y, 'white', 10, 5);
+                         b.dead = true; score += 50; spawnParticles(b.x, b.y, 'white', 10, 5);
                          continue;
                      }
                 }
             }
-
-            if (skills[5].active) {
-                let rx = player.x; let ry = player.y - 50;
-                let rw = 100; 
+            if (skills[5] && skills[5].active) {
+                let rx = player.x; let ry = player.y - 50; let rw = 100; 
                 if(b.x > rx - rw/2 && b.x < rx + rw/2 && b.y < ry) {
                     if(!b.isBossShield && !b.isLaser) { 
-                        b.dead = true;
-                        spawnParticles(b.x, b.y, b.color, 4, 2);
+                        b.dead = true; spawnParticles(b.x, b.y, b.color, 4, 2);
                         continue; 
                     }
                 }
             }
-            
-            if (skills[7].active) {
+            if (skills[7] && skills[7].active) {
                 if (distSq < 10000) { 
-                     let pushA = Math.atan2(dy, dx);
-                     b.x += Math.cos(pushA) * 5;
-                     b.y += Math.sin(pushA) * 5;
+                     let pushA = Math.atan2(dy, dx); b.x += Math.cos(pushA) * 5; b.y += Math.sin(pushA) * 5;
                      continue; 
                 }
             }
-
-            if (skills[3].active && !b.isLaser) {
+            if (skills[3] && skills[3].active && !b.isLaser) {
                 if (distSq < 160000 && distSq > 3600) { 
-                    b.isEnemy = false; b.color = 'cyan'; 
-                    b.angle = Math.atan2(boss.y - b.y, boss.x - b.x);
-                    b.homing = 0.2; 
-                    // [유지] 반사 대미지 2
-                    b.damage = 2; 
-                    b.scoreVal = 1;
+                    b.isEnemy = false; b.color = 'cyan'; b.angle = Math.atan2(boss.y - b.y, boss.x - b.x);
+                    b.homing = 0.2; b.damage = 2; b.scoreVal = 1;
                     spawnText(b.x, b.y, "Reflect", '#0ff', 10);
                     continue;
                 }
@@ -837,8 +794,7 @@ function update() {
             if (shieldObj && !b.isLaser) {
                 if (b.x > shieldObj.x - shieldObj.w/2 && b.x < shieldObj.x + shieldObj.w/2 &&
                     b.y > shieldObj.y - shieldObj.h/2 && b.y < shieldObj.y + shieldObj.h/2) {
-                    b.dead = true; 
-                    spawnParticles(b.x, b.y, 'cyan', 4, 2); 
+                    b.dead = true; spawnParticles(b.x, b.y, 'cyan', 4, 2); 
                     if (shieldObj.w < shieldObj.maxW) shieldObj.w += 5;
                     continue;
                 }
@@ -870,102 +826,62 @@ function update() {
             }
 
             if(hit) {
-                let isInvulSkill = skills[1].active;
+                let isInvulSkill = skills[1] && skills[1].active;
                 let bossDistSq = (player.x-boss.x)**2 + (player.y-boss.y)**2;
                 let bossCol = (bossDistSq < boss.r * boss.r);
                 
-                if (!bossCol && player.invul <= 0 && !godMode && !isInvulSkill && !skills[7].active) {
+                if (!bossCol && player.invul <= 0 && !godMode && !isInvulSkill && (!skills[7] || !skills[7].active)) {
                     player.hp--;
                     player.invul = 90; player.slowTimer = 60;
                     gameScreen.style.backgroundColor = '#300';
                     spawnParticles(player.x, player.y, 'red', 20, 5);
                     setTimeout(()=>gameScreen.style.backgroundColor='', 100);
-                    if(player.hp <= 0) state = 'over';
+                    if(player.hp <= 0) {
+                        state = 'over';
+                        sendScoreToFirebase(); // 게임 오버 시 전송
+                    }
                 }
             } else if (!b.isLaser && distSq < 400 && !b.grazed) { 
-                let mult = getScoreMultiplier();
-                score += 1 * mult; 
-                b.grazed = true; 
+                let mult = getScoreMultiplier(); score += 1 * mult; b.grazed = true; 
             }
-
         } else {
+            // (거대 탄환 처리 로직 등 - 원본 유지)
             let hitGiant = false;
             if (b.y < 600) { 
                 for(let j=0; j<bullets.length; j++) {
                     let eb = bullets[j];
                     if (eb.isEnemy && eb.isGiant && !eb.dead) {
-                        let edx = b.x - eb.x;
-                        let edy = b.y - eb.y;
-                        let edistSq = edx*edx + edy*edy;
+                        let edx = b.x - eb.x; let edy = b.y - eb.y; let edistSq = edx*edx + edy*edy;
                         let isLaserHit = false;
-                        if (b.isLaser) {
-                             if (Math.abs(edx) < eb.r + 10) isLaserHit = true;
-                        }
-
+                        if (b.isLaser) { if (Math.abs(edx) < eb.r + 10) isLaserHit = true; }
                         if ((!b.isLaser && edistSq < (eb.r+5)**2) || isLaserHit) {
-                            eb.hp -= (b.damage || 3);
-                            spawnParticles(eb.x, eb.y, 'orange', 2, 1);
-                            if (eb.hp <= 0) {
-                                eb.dead = true;
-                                score += 50; 
-                                spawnParticles(eb.x, eb.y, eb.color, 10, 3);
-                            }
+                            eb.hp -= (b.damage || 3); spawnParticles(eb.x, eb.y, 'orange', 2, 1);
+                            if (eb.hp <= 0) { eb.dead = true; score += 50; spawnParticles(eb.x, eb.y, eb.color, 10, 3); }
                             if (!b.isRailgun && !b.isGravityCounter) hitGiant = true; 
                             if (!b.isRailgun && !b.isGravityCounter) break; 
                         }
                     }
                 }
             }
-            if (hitGiant && !b.isLaser) {
-                b.dead = true;
-                continue;
-            }
+            if (hitGiant && !b.isLaser) { b.dead = true; continue; }
 
-            let hitAny = false;
-            let isHit = false;
-
-            if (b.isLaser) {
-                if (Math.abs(b.x - boss.x) < (b.h/2 + boss.r)) { 
-                    isHit = true;
-                }
-            } else {
-                if(Math.abs(b.x-boss.x)<30 + b.r && Math.abs(b.y-boss.y)<30 + b.r) {
-                    isHit = true;
-                }
-            }
+            let hitAny = false; let isHit = false;
+            if (b.isLaser) { if (Math.abs(b.x - boss.x) < (b.h/2 + boss.r)) isHit = true; } 
+            else { if(Math.abs(b.x-boss.x)<30 + b.r && Math.abs(b.y-boss.y)<30 + b.r) isHit = true; }
 
             if(isHit) {
                 if (b.isRailgun) {
-                    if (b.hasHitBoss) {
-                        hitAny = true; 
-                    } else {
-                        boss.hp -= b.damage; 
-                        score += b.scoreVal; 
-                        spawnText(boss.x, boss.y - 30, `BIG HIT +${b.scoreVal}`, 'cyan', 25);
-                        b.hasHitBoss = true;
-                        hitAny = true;
-                        spawnParticles(boss.x, boss.y, 'cyan', 20, 5);
+                    if (b.hasHitBoss) { hitAny = true; } else {
+                        boss.hp -= b.damage; score += b.scoreVal; spawnText(boss.x, boss.y - 30, `BIG HIT +${b.scoreVal}`, 'cyan', 25);
+                        b.hasHitBoss = true; hitAny = true; spawnParticles(boss.x, boss.y, 'cyan', 20, 5);
                     }
-                } 
-                else {
-                    boss.hp -= (b.damage || 3);
-                    hitAny = true;
-                    
-                    let gainScore = 0;
-                    if (b.scoreVal !== undefined && b.scoreVal > 0) {
-                        gainScore = b.scoreVal;
-                    } else {
-                        gainScore = 1 * getScoreMultiplier();
-                    }
-
+                } else {
+                    boss.hp -= (b.damage || 3); hitAny = true;
+                    let gainScore = (b.scoreVal !== undefined && b.scoreVal > 0) ? b.scoreVal : 1 * getScoreMultiplier();
                     score += gainScore;
-                    
                     if (gainScore > 0) {
-                        if (b.isLaser) {
-                            if (frame % 6 === 0) spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
-                        } else {
-                            spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
-                        }
+                        if (b.isLaser) { if (frame % 6 === 0) spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15); } 
+                        else { spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15); }
                     }
                     if(frame % 3 === 0) spawnParticles(boss.x + (Math.random()-0.5)*20, boss.y + (Math.random()-0.5)*20, 'cyan', 2, 2);
                 }
@@ -977,58 +893,35 @@ function update() {
     
     explosions.forEach(e => { e.r += 5; e.life--; });
     explosions = explosions.filter(e => e.life > 0);
-
     particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; p.size *= 0.95; });
     particles = particles.filter(p => p.life > 0);
-
     texts.forEach(t => { t.y += t.vy; t.life--; t.vy *= 0.9; });
     texts = texts.filter(t => t.life > 0);
 }
 
-// [복구] 시각적 렌더링 함수 (과거 코드 스타일)
+// Draw 함수 (원본 유지 + Pause 화면 처리)
 function draw() {
     ctx.clearRect(0,0,600,800);
     
-    // 1. 배경
     ctx.fillStyle = '#555';
-    stars.forEach(s => {
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
-    });
+    stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill(); });
 
     if (showScoreLines) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.font = "10px Arial";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-        const lines = [420, 520, 650, 740];
-        const scores = [5, 4, 3, 2];
-        lines.forEach((y, i) => {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(600, y); ctx.stroke();
-            ctx.fillText(`ZONE ${scores[i]}`, 10, y - 5);
-        });
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.lineWidth = 1; ctx.font = "10px Arial"; ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+        const lines = [420, 520, 650, 740]; const scores = [5, 4, 3, 2];
+        lines.forEach((y, i) => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(600, y); ctx.stroke(); ctx.fillText(`ZONE ${scores[i]}`, 10, y - 5); });
         ctx.fillText(`ZONE 1`, 10, 790);
     }
 
     if (state === 'play' || state === 'over' || state === 'countdown') {
-        
-        // [잔상]
-        afterimages.forEach(img => {
-            ctx.save(); ctx.globalAlpha = img.alpha;
-            ctx.fillStyle = 'cyan'; ctx.fillRect(img.x-15, img.y-15, 30, 30);
-            ctx.restore(); 
-        });
+        afterimages.forEach(img => { ctx.save(); ctx.globalAlpha = img.alpha; ctx.fillStyle = 'cyan'; ctx.fillRect(img.x-15, img.y-15, 30, 30); ctx.restore(); });
 
-        // [탄환] (레이어 순서: 배경 -> 탄환 -> 보스 -> 플레이어)
         bullets.forEach(b => {
             ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
             if (b.warnTime > 0 && b.timer < b.warnTime) {
                 ctx.globalAlpha = 0.2; ctx.fillStyle = b.color;
-                if(b.isLaser) {
-                    ctx.fillRect(-1000, -b.h/2, b.w+1000, b.h);
-                } else { 
-                    ctx.beginPath(); ctx.arc(0,0,2,0,Math.PI*2); ctx.fill();
-                    ctx.strokeStyle=b.color; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(50,0); ctx.stroke();
-                }
+                if(b.isLaser) { ctx.fillRect(-1000, -b.h/2, b.w+1000, b.h); } 
+                else { ctx.beginPath(); ctx.arc(0,0,2,0,Math.PI*2); ctx.fill(); ctx.strokeStyle=b.color; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(50,0); ctx.stroke(); }
                 ctx.globalAlpha = 1.0;
             } else {
                 ctx.fillStyle = b.color;
@@ -1039,118 +932,62 @@ function draw() {
                     if (appearTime < 5) currentH = b.h * (appearTime/5);
                     if (timeLeft < 10) currentH = b.h * (timeLeft/10);
                     
-                    if (boss.phase === 4 && b.isEnemy) {
-                        ctx.fillStyle = '#888'; 
-                        ctx.fillRect(-1000, -currentH/2 - 4, b.w+1000, currentH + 8);
-                        ctx.fillStyle = '#fff';
-                        ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
-                    } else {
-                        // [복구] 깔끔한 2중 직사각형 레이저
-                        ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
-                        ctx.fillStyle = '#fff'; ctx.fillRect(-1000, -currentH/4, b.w+1000, currentH/2);
-                    }
+                    if (boss.phase === 4 && b.isEnemy) { ctx.fillStyle = '#888'; ctx.fillRect(-1000, -currentH/2 - 4, b.w+1000, currentH + 8); ctx.fillStyle = '#fff'; ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH); } 
+                    else { ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH); ctx.fillStyle = '#fff'; ctx.fillRect(-1000, -currentH/4, b.w+1000, currentH/2); }
                 } else {
                     ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
-                    // [복구] 대형탄 내부 코어
                     if(b.r > 5) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0,b.r*0.6,0,Math.PI*2); ctx.fill(); }
-                    // 숫자 표시 제거됨
                 }
             }
             ctx.restore();
         });
 
-        // [보스] (눈알 제거됨, 깔끔한 원형)
-        if (boss.hp > 0) {
-            let color = getPhaseColor();
-            ctx.fillStyle = color; 
-            ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
-        }
+        if (boss.hp > 0) { let color = getPhaseColor(); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill(); }
 
-        // [플레이어] (가장 위에 그려짐)
         if (state !== 'over') {
-            // [복구] 빨간색 사각형 몸체
-            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : (player.slowTimer > 0 ? '#555' : 'red'));
+            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : ((skills[2] && skills[2].active) ? '#0ff' : (player.slowTimer > 0 ? '#555' : 'red'));
             ctx.fillRect(player.x-15, player.y-15, 30, 30);
-
-            // [복구] 흰색 히트박스 점
-            if (!(player.invul>0 && Math.floor(frame/4)%2===0)) {
-                ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,player.hitboxSize,0,Math.PI*2); ctx.fill();
+            if (!(player.invul>0 && Math.floor(frame/4)%2===0)) { ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(player.x,player.y,player.hitboxSize,0,Math.PI*2); ctx.fill(); }
+            
+            if (skills[12] && skills[12].active) {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(player.x, player.y, 36, -Math.PI, 0); ctx.stroke();
             }
-
-            // 패링 범위
-            if (skills[12].active) {
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(player.x, player.y, 36, -Math.PI, 0); 
-                ctx.stroke();
-            }
-            // 산데비스탄 잔상 사각형
             if (isRewinding) { ctx.fillStyle = '#0f0'; ctx.fillRect(player.x-15, player.y-15, 30, 30); }
         }
 
-        // [오브젝트]
-        if (shieldObj) {
-            ctx.save();
-            ctx.translate(shieldObj.x, shieldObj.y);
-            ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; 
-            ctx.strokeRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
-            ctx.fillRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
-            ctx.restore();
-        }
-        if (gravityObj) {
-            ctx.save(); ctx.translate(gravityObj.x, gravityObj.y);
-            ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; 
-            ctx.beginPath(); ctx.arc(0, 0, gravityObj.r, 0, Math.PI*2); ctx.stroke();
-            ctx.fillStyle = 'rgba(100,0,255,0.1)'; ctx.fill();
-            ctx.restore();
-        }
-        if (skills[12].active) {
-            ctx.save();
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.arc(player.x, player.y - 30, 40, Math.PI, 0); 
-            ctx.stroke();
-            ctx.restore();
-        }
+        if (shieldObj) { ctx.save(); ctx.translate(shieldObj.x, shieldObj.y); ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; ctx.strokeRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h); ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; ctx.fillRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h); ctx.restore(); }
+        if (gravityObj) { ctx.save(); ctx.translate(gravityObj.x, gravityObj.y); ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, gravityObj.r, 0, Math.PI*2); ctx.stroke(); ctx.fillStyle = 'rgba(100,0,255,0.1)'; ctx.fill(); ctx.restore(); }
+        if (skills[12] && skills[12].active) { ctx.save(); ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(player.x, player.y - 30, 40, Math.PI, 0); ctx.stroke(); ctx.restore(); }
 
-        // [이펙트]
-        explosions.forEach(e => {
-            ctx.save(); ctx.translate(e.x, e.y);
-            ctx.strokeStyle = 'orange'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.stroke();
-            ctx.restore();
-        });
-
-        particles.forEach(p => {
-            ctx.fillStyle = p.color; ctx.globalAlpha = p.life / 50;
-            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-            ctx.globalAlpha = 1;
-        });
-
-        texts.forEach(t => {
-            ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Arial`;
-            ctx.fillText(t.text, t.x, t.y);
-        });
+        explosions.forEach(e => { ctx.save(); ctx.translate(e.x, e.y); ctx.strokeStyle = 'orange'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.stroke(); ctx.restore(); });
+        particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life / 50; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; });
+        texts.forEach(t => { ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Arial`; ctx.fillText(t.text, t.x, t.y); });
     }
 
     if (state === 'over' || state === 'clear') {
         ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,600,800);
         ctx.fillStyle = '#fff'; ctx.font = '50px Courier'; ctx.textAlign='center';
-        
         let title = state === 'clear' ? "VICTORY!" : "GAME OVER";
         ctx.fillText(title, 300, 300);
-        
         ctx.font = '24px Courier';
         let survivalTime = (frame / 60).toFixed(1); 
         ctx.fillText(`Survival Time: ${survivalTime}s`, 300, 380);
         ctx.fillText(`Final Score: ${score}`, 300, 420);
         
-        if (state === 'clear' && frame % 20 === 0) spawnParticles(Math.random()*600, Math.random()*600, `hsl(${Math.random()*360},100%,50%)`, 30, 5);
-        
         ctx.fillStyle = '#aaa';
-        ctx.font = '20px Courier'; ctx.fillText("Press [R] to Retry", 300, 500);
+        ctx.font = '20px Courier'; 
+        ctx.fillText("Uploading Data...", 300, 500);
+
+        // 버튼 표시 (HTML로 대체 가능하지만 여기선 캔버스 위에 그림)
+        if(document.getElementById('ranking-btn') == null) {
+             let btn = document.createElement('button');
+             btn.id = 'ranking-btn';
+             btn.innerText = "VIEW RANKING";
+             btn.style.position = 'absolute'; btn.style.top = '550px'; btn.style.left = '50%'; btn.style.transform = 'translateX(-50%)';
+             btn.onclick = () => location.href = 'ranking.html';
+             gameScreen.appendChild(btn);
+        }
     }
 }
 
@@ -1160,41 +997,72 @@ function loop() {
     requestAnimationFrame(loop);
 }
 
-// 유틸리티
-function angleToP(obj) { return Math.atan2(player.y - obj.y, player.x - obj.x); }
-function resetGame() {
-    boss.hp = boss.maxHp; boss.phase = 1; score = 0; frame = 0;
-    player.hp = player.maxHp; player.invul = 0; player.slowTimer = 0; player.regenTimer = 0;
-    bullets.length=0; state='init'; patternTimer = 0; boss.transitioning = false; boss.freeze=false; boss.moveTimer=0;
-    boss.isChanneling = false;
-    timeScale = 1.0;
-    shieldObj = null; gravityObj = null; loopCount = 0;
-    afterimages = []; explosions = []; particles = []; texts = []; gameStateHistory = [];
-    for(let i=1; i<=12; i++) { if(skills[i]) { skills[i].timer = 0; skills[i].active = false; } }
-    
-    msgBox.style.display = 'none';
-    gameScreen.className = '';
-    gameScreen.style.filter = "";
-    clearAllPatterns(); 
+// 4. Firebase 전송 로직
+function sendScoreToFirebase() {
+    gameEndTime = Date.now();
+    let playDurationSec = Math.floor((gameEndTime - gameStartTime) / 1000);
+    let min = Math.floor(playDurationSec / 60);
+    let sec = playDurationSec % 60;
+    let timeStr = `${min}:${sec < 10 ? '0'+sec : sec}`;
+
+    // 스킬 이름 목록 (패링 제외)
+    let usedSkillsNames = userSelectedSkills.map(id => skillsData[id].name);
+
+    const record = {
+        nickname: userNickname,
+        score: score,
+        playTime: timeStr,
+        loopCount: loopCount,
+        isCheater: hasCheated,
+        skills: usedSkillsNames, // 배열 저장
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    database.ref('scores').push(record);
 }
+
+// 5. 유틸리티 및 이벤트 리스너
+function angleToP(obj) { return Math.atan2(player.y - obj.y, player.x - obj.x); }
 
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
-    if (e.code === 'KeyR' && state !== 'play' && state !== 'countdown') resetGame();
-    if (e.code === 'KeyT') { 
-        godMode = !godMode; 
-        adminMsg.style.display = godMode ? 'block' : 'none'; 
-        debugPanel.style.display = godMode ? 'flex' : 'none';
-    }
-    if (e.code === 'KeyV') { showScoreLines = !showScoreLines; }
-    if (e.code === 'Space') useSkill(12);
 
-    if (e.code === 'Digit1') useSkill(1); if (e.code === 'Digit2') useSkill(2);
-    if (e.code === 'Digit3') useSkill(3); if (e.code === 'Digit4') useSkill(4);
-    if (e.code === 'Digit5') useSkill(5); 
-    if (e.code === 'Digit7') useSkill(7); 
-    if (e.code === 'Digit0') useSkill(10);
-    if (e.code === 'Minus' || e.code === 'NumpadSubtract') useSkill(11);
+    // 일시정지 (S)
+    if (e.code === 'KeyS' && state === 'play') {
+        isPaused = !isPaused;
+        pauseOverlay.style.display = isPaused ? 'flex' : 'none';
+    }
+
+    // 관리자 모드 (T + 암호)
+    if (e.code === 'KeyT') { 
+        if (!godMode) {
+            let pw = prompt("ADMIN PASSWORD:");
+            if (pw === "0515") {
+                godMode = true;
+                hasCheated = true; // 치트 사용 기록
+                adminMsg.style.display = 'block';
+                debugPanel.style.display = 'flex';
+                alert("GOD MODE ENABLED (Cheater Flagged)");
+            } else {
+                alert("ACCESS DENIED");
+            }
+        } else {
+            godMode = false;
+            adminMsg.style.display = 'none';
+            debugPanel.style.display = 'none';
+        }
+    }
+    
+    if (e.code === 'KeyV') { showScoreLines = !showScoreLines; }
+
+    // 스킬 키 바인딩
+    if (e.code === 'Space') useSkill(12); // 기본 패링
+    if (e.code === 'KeyZ') {
+        if (userSelectedSkills.length > 0) useSkill(userSelectedSkills[0]);
+    }
+    if (e.code === 'KeyX') {
+        if (userSelectedSkills.length > 1) useSkill(userSelectedSkills[1]);
+    }
 
     if (godMode) {
         if (e.code === 'F1') setPhase(1);
@@ -1204,4 +1072,6 @@ window.addEventListener('keydown', e => {
     }
 });
 window.addEventListener('keyup', e=>keys[e.code]=false);
+
+// 게임 루프 시작
 loop();
