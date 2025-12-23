@@ -124,4 +124,74 @@
         skillsData.forEach(s => {
             const el = document.createElement('div');
             el.className = 'skill-card';
-            el.innerHTML = `<div style="font-size:
+            el.innerHTML = `<div style="font-size:30px; margin-bottom:10px;">⚡</div><div>${s.name}</div><div class="key-badge"></div>`;
+            
+            // 마우스 오버 시 설명 및 노트 업데이트
+            el.onmouseenter = () => {
+                iName.innerText = s.name;
+                iDesc.innerText = s.desc;
+                // Note 업데이트 (없으면 기본 멘트)
+                iNote.innerText = s.note ? s.note : "* 패링(Space)은 기본 장착됩니다.";
+                iNote.style.color = "#fff"; // 텍스트 색상을 밝게 강조
+            };
+
+            // 마우스가 떠날 때 (선택사항: 원하신다면 기본 멘트로 복귀하게 할 수도 있음)
+            // el.onmouseleave = () => { ... }
+
+            // 클릭 시 선택/해제 로직
+            el.onclick = () => {
+                // 패링(12번)은 선택 불가 (기본 스킬이므로)
+                if(s.id === 12) {
+                    alert("패링은 기본 스킬입니다. 다른 스킬을 선택해주세요!");
+                    return;
+                }
+
+                const idx = selectedSkills.indexOf(s.id);
+                if (idx > -1) {
+                    // 이미 선택됨 -> 해제
+                    selectedSkills.splice(idx, 1);
+                } else {
+                    // 선택 안됨 -> 추가 (최대 2개)
+                    if (selectedSkills.length < 2) {
+                        selectedSkills.push(s.id);
+                    } else {
+                        // 꽉 찼으면 첫번째꺼 빼고 넣기 (교체)
+                        selectedSkills.shift();
+                        selectedSkills.push(s.id);
+                    }
+                }
+                renderSelection();
+            };
+            
+            // ID 저장
+            el.dataset.id = s.id;
+            grid.appendChild(el);
+        });
+
+        function renderSelection() {
+            const cards = document.querySelectorAll('.skill-card');
+            cards.forEach(c => {
+                const sid = parseInt(c.dataset.id);
+                const sIdx = selectedSkills.indexOf(sid);
+                const badge = c.querySelector('.key-badge');
+                
+                if (sIdx > -1) {
+                    c.classList.add('selected');
+                    badge.style.display = 'flex';
+                    badge.innerText = sIdx === 0 ? 'Z' : 'X';
+                    badge.style.background = sIdx === 0 ? '#fff' : '#ffd700'; // Z는 흰색, X는 골드
+                } else {
+                    c.classList.remove('selected');
+                    badge.style.display = 'none';
+                }
+            });
+        }
+
+        function startGame() {
+            // 아무것도 선택 안해도 됨. 선택한 것만 저장
+            localStorage.setItem('bossRush_skills', JSON.stringify(selectedSkills));
+            location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
