@@ -449,8 +449,8 @@ function updateSkills() {
                 if (i===4) shieldObj = null;
                 if (i===10 && gravityObj) { 
                     // [유지] 중력장 밸런스
-                    let dmg = Math.min(gravityObj.absorbed * 4, 100); 
-                    let scoreBonus = Math.min(gravityObj.absorbed * 4, 200); 
+                    let dmg = Math.min(gravityObj.absorbed * 1.4, 100); 
+                    let scoreBonus = Math.min(gravityObj.absorbed * 1.4, 200); 
 
                     let angleToBoss = Math.atan2(boss.y - gravityObj.y, boss.x - gravityObj.x);
                     shoot({
