@@ -8,90 +8,76 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+    <script>
+        (function() {
+            if (!localStorage.getItem('playerName')) {
+                window.location.replace('start.html'); 
+            }
+        })();
+    </script>
 
     <style>
-        /* === 1. 보스 체력바 (화면 맨 위 중앙) === */
+        /* === 1. 보스 체력바 (크기 축소 및 초기 숨김) === */
         #boss-hp-container {
             position: absolute;
-            top: 20px;
+            top: 60px; /* 카운트다운(보통 중앙/상단)과 겹치지 않게 조금 더 아래로 */
             left: 50%;
-            transform: translateX(-50%); /* 정확히 중앙 정렬 */
-            width: 500px;
-            height: 30px;
-            border: 3px solid #fff;
-            background-color: #222; /* 빈 게이지 색 */
-            z-index: 100;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+            transform: translateX(-50%);
+            width: 300px;  /* 너비 줄임 (기존 500px -> 300px) */
+            height: 20px;  /* 높이 줄임 (기존 30px -> 20px) */
+            border: 2px solid #fff;
+            background-color: #222;
+            z-index: 80; /* UI보다 살짝 아래, 하지만 게임보단 위에 */
+            display: none; /* [핵심] 게임 시작 전에는 안 보이게 숨김 */
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
         #boss-hp-bar {
-            width: 100%; /* 스크립트로 조절됨 */
+            width: 100%;
             height: 100%;
-            background-color: #f00; /* 빨간색 */
-            transition: width 0.1s linear; /* 부드럽게 줄어듦 */
+            background-color: #f00;
+            transition: width 0.1s linear;
         }
 
         #boss-hp-text {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            line-height: 30px; /* 세로 중앙 정렬 */
+            line-height: 20px; /* 높이에 맞춰 정렬 */
             text-align: center;
             color: white;
+            font-size: 12px; /* 글자 크기 축소 */
             font-weight: bold;
             font-family: 'Courier New', Courier, monospace;
-            text-shadow: 1px 1px 2px black;
+            text-shadow: 1px 1px 1px black;
         }
 
-        /* === 2. 우측 스킬 UI (세로 배치) - 중복 제거됨 === */
-        #right-skill-panel {
+        /* === 2. 스킬 아이콘 컨테이너 (요청하신 디자인: 왼쪽 하단 가로 배치) === */
+        #skill-hud {
             position: absolute;
-            top: 200px;
-            right: 20px; /* 오른쪽 끝 */
+            bottom: 20px;
+            left: 20px;
             display: flex;
-            flex-direction: column; /* 세로로 쌓기 */
             gap: 15px;
-            z-index: 90;
+            z-index: 50;
         }
-
-        .skill-box {
-            width: 60px;
-            height: 60px;
-            background: rgba(0, 0, 0, 0.7);
-            border: 2px solid #666;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-family: sans-serif;
-            position: relative;
-            box-shadow: 0 0 5px #000;
-        }
-
-        .skill-key {
-            font-size: 16px;
-            font-weight: bold;
-            color: #ffeb3b; /* 노란색 키 이름 */
-            border-bottom: 1px solid #444;
-            width: 100%;
-            text-align: center;
-            padding-bottom: 3px;
-            margin-bottom: 3px;
-        }
-
-        .skill-icon {
-            font-size: 20px;
-        }
-
-        /* 쿨타임 덮개 (어두운 막) */
-        .cd-overlay {
-            position: absolute;
-            bottom: 0; left: 0;
-            width: 100%; height: 0%; /* 100%면 꽉 참 */
+        .skill-slot {
+            width: 50px; height: 50px;
             background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #555;
             border-radius: 8px;
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 20px;
+        }
+        .key-badge {
+            position: absolute; top: -8px; left: -8px;
+            background: #fff; color: #000; font-size: 10px; font-weight: bold;
+            padding: 2px 4px; border-radius: 3px;
+        }
+        .cd-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+            background: rgba(0, 0, 0, 0.7);
             transition: height 0.1s linear;
         }
 
@@ -105,22 +91,33 @@
             z-index: 90;
             text-shadow: 1px 1px 2px #000;
         }
-        #score-box { top: 70px; left: 20px; }
-        #hp-box { top: 100px; left: 20px; color: #f55; }
-        #player-info { top: 130px; left: 20px; color: #aaa; font-size: 14px; }
+        #score-box { top: 20px; left: 20px; }
+        #hp-box { top: 50px; left: 20px; color: #f55; }
+        #player-info { top: 80px; left: 20px; color: #aaa; font-size: 14px; }
+        #msg-box { 
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            color: #ff0; font-weight: bold; font-size: 20px; display: none;
+        }
 
-        /* === 4. 게임 오버 화면 (최상단 노출 보장) === */
+        /* === 4. 게임 오버 화면 (버튼 위치 조정) === */
         #game-over-screen {
             display: none;
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); /* 거의 검은색 */
+            background: rgba(0,0,0,0.9);
             flex-direction: column;
             align-items: center; justify-content: center;
-            z-index: 9999; /* 다른 UI보다 무조건 위에 */
-            pointer-events: auto; /* 클릭 가능하도록 강제 */
+            z-index: 9999;
+            padding-top: 100px; /* [핵심] 전체 내용을 화면 아래쪽으로 내림 */
         }
         
+        #go-title {
+            color: red; font-size: 60px; text-shadow: 0 0 20px red; margin-bottom: 20px;
+        }
+        #go-score {
+            color: white; font-size: 30px; margin-bottom: 60px; /* 점수와 버튼 사이 간격 벌림 */
+        }
+
         .go-btn {
             width: 250px; padding: 15px; margin: 10px;
             font-family: 'Courier New', Courier, monospace;
@@ -140,40 +137,40 @@
         <div id="ui-layer">
             
             <div id="boss-hp-container">
-                <div id="boss-hp-bar"></div> <div id="boss-hp-text">10000 / 10000</div>
+                <div id="boss-hp-bar"></div>
+                <div id="boss-hp-text">10000 / 10000</div>
             </div>
 
             <div id="score-box" class="hud-text">SCORE: 0</div>
             <div id="hp-box" class="hud-text">♥♥♥♥♥</div>
             <div id="player-info" class="hud-text">PLAYER: ???</div>
-            <div id="msg-box" style="display:none;">PHASE 1</div>
+            <div id="msg-box">PHASE 1</div>
 
-            <div id="right-skill-panel">
-                <div class="skill-box" id="skill-z-slot">
-                    <span class="skill-key">Z</span>
-                    <span class="skill-icon" id="skill-z-icon">⚔️</span>
-                    <div id="skill-z-cd" class="cd-overlay"></div>
+            <div id="skill-hud">
+                <div class="skill-slot" id="skill-z-slot">
+                    <span class="key-badge">Z</span>
+                    <span id="skill-z-icon">⚔️</span> <div id="skill-z-cd" class="cd-overlay"></div>
                 </div>
-                <div class="skill-box" id="skill-x-slot">
-                    <span class="skill-key">X</span>
-                    <span class="skill-icon" id="skill-x-icon">⚡</span>
+                <div class="skill-slot" id="skill-x-slot">
+                    <span class="key-badge">X</span>
+                    <span id="skill-x-icon">⚡</span>
                     <div id="skill-x-cd" class="cd-overlay"></div>
                 </div>
-                <div class="skill-box" id="skill-space-slot">
-                    <span class="skill-key">Spc</span>
-                    <span class="skill-icon">🛡️</span>
+                <div class="skill-slot" id="skill-space-slot">
+                    <span class="key-badge">SPC</span>
+                    <span>🛡️</span>
                     <div id="skill-space-cd" class="cd-overlay"></div>
                 </div>
             </div>
 
-            <div id="pause-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center; color:white; z-index: 999;">
+            <div id="pause-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center; color:white; z-index:999;">
                 <div class="neon-text" style="font-size: 60px;">PAUSED</div>
                 <div style="color: #aaa; margin-top: 20px;">Press [S] to Resume</div>
             </div>
 
             <div id="game-over-screen">
-                <h1 id="go-title" style="color: red; font-size: 60px; text-shadow: 0 0 20px red; margin-bottom: 20px;">GAME OVER</h1>
-                <h2 id="go-score" style="color: white; font-size: 30px; margin-bottom: 50px;">Final Score: 0</h2>
+                <h1 id="go-title">GAME OVER</h1>
+                <h2 id="go-score">Final Score: 0</h2>
                 
                 <button class="go-btn" onclick="resetGame()">다시 하기 (R)</button>
                 <button class="go-btn btn-rank" onclick="goToRanking()">랭킹 보기</button>
@@ -186,50 +183,70 @@
     <script src="index.js"></script>
 
     <script>
-        // 플레이어 이름 표시
+        // 플레이어 이름
         const pName = localStorage.getItem('playerName') || "Player";
         document.getElementById('player-info').innerText = "PLAYER: " + pName;
 
-        // 메인으로 이동 (start.html)
+        // 버튼 기능들
         function goToMain() {
             localStorage.removeItem('playerName');
             window.location.href = 'start.html';
         }
-
-        // 랭킹 (준비중)
         function goToRanking() {
             alert("랭킹 시스템은 아직 준비 중입니다!");
         }
 
-        // 게임 오버 화면 띄우기 (index.js에서 호출됨)
+        // 게임 오버 화면 표시
         function showGameOverScreen(finalScore) {
             const screen = document.getElementById('game-over-screen');
             const scoreText = document.getElementById('go-score');
+            const hpBar = document.getElementById('boss-hp-container');
 
             if(scoreText) scoreText.innerText = "Final Score: " + finalScore;
             
-            // 화면을 켜고 flex로 설정하여 중앙 정렬 맞춤
-            if(screen) {
-                screen.style.display = 'flex';
-            }
+            // 게임 끝나면 체력바 숨기기 (깔끔하게)
+            if(hpBar) hpBar.style.display = 'none';
+
+            if(screen) screen.style.display = 'flex';
         }
 
-        // 화면 숨기기 (재시작용)
         function hideGameOverScreen() {
             const screen = document.getElementById('game-over-screen');
             if(screen) screen.style.display = 'none';
         }
 
-        // resetGame 함수 오버라이딩 (안전장치: 버튼 클릭 시 작동하도록)
+        // 재시작 (R)
         const originalReset = window.resetGame;
         window.resetGame = function() {
             hideGameOverScreen();
-            if(typeof originalReset === 'function') {
-                originalReset();
-            } else {
-                location.reload(); // JS 함수가 없으면 페이지 새로고침이라도 함
-            }
+            
+            // 재시작 시 체력바 다시 숨김 (카운트다운 동안 안 보이게)
+            const hpBar = document.getElementById('boss-hp-container');
+            if(hpBar) hpBar.style.display = 'none';
+
+            if(typeof originalReset === 'function') originalReset();
+            else location.reload();
         };
+
+        // [자동 감지] 게임이 시작되어서 보스 체력이 깎이거나 세팅되면 체력바 표시
+        // index.js를 수정하지 않고 외부에서 감지하는 코드입니다.
+        const hpObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'style') {
+                    const hpContainer = document.getElementById('boss-hp-container');
+                    // 체력바의 style(width 등)이 변한다는 건 게임이 진행 중이라는 뜻
+                    if (hpContainer && hpContainer.style.display === 'none') {
+                        hpContainer.style.display = 'block';
+                    }
+                }
+            });
+        });
+
+        // 감시 시작
+        const hpBarElem = document.getElementById('boss-hp-bar');
+        if(hpBarElem) {
+            hpObserver.observe(hpBarElem, { attributes: true });
+        }
     </script>
 </body>
 </html>
