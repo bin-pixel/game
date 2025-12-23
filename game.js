@@ -1,7 +1,7 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 // 도트 그래픽 느낌 (원하시면 true로 변경 가능)
-ctx.imageSmoothingEnabled = false; 
+ctx.imageSmoothingEnabled = true; 
 
 // UI 엘리먼트 가져오기
 const uiHp = document.getElementById('boss-hp-bar');
