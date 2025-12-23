@@ -61,7 +61,6 @@ let gravityObj = null;
 const patternInternalCd = {};
 const keys = {};
 let stars = [];
-// 배경 별 개수 최적화
 for(let i=0; i<60; i++) stars.push({x:Math.random()*600, y:Math.random()*800, size:Math.random()*2, speed:Math.random()*3+1});
 
 // 스킬 설정
@@ -70,7 +69,8 @@ const skills = {
     2: { name: '산데', cd: 1200, duration: 300, active: false, timer: 0 }, 
     3: { name: '반사', cd: 600, duration: 6, active: false, timer: 0 }, 
     4: { name: '방패', cd: 900, duration: 600, active: false, timer: 0 }, 
-    5: { name: '레일건', cd: 300, duration: 30, active: false, timer: 0 }, 
+    // [수정] 레일건 쿨타임 10초(600프레임)
+    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, 
     7: { name: '동결', cd: 1800, duration: 240, active: false, timer: 0 }, 
     10: { name: '중력장', cd: 1200, duration: 300, active: false, timer: 0 }, 
     11: { name: '리콜', cd: 420, duration: 0, active: false, timer: 0 },
@@ -101,11 +101,12 @@ function getBulletColor() {
     return '#ff0000';
 }
 
+// [수정] 점수 라인 변경
 function getScoreMultiplier() {
     if (player.y <= 420) return 5; 
-    if (player.y <= 500) return 4; 
+    if (player.y <= 520) return 4; 
     if (player.y <= 650) return 3; 
-    if (player.y <= 700) return 2; 
+    if (player.y <= 740) return 2; 
     return 1;                      
 }
 
@@ -147,8 +148,8 @@ function updateDebugPanel() {
 }
 
 function spawnParticles(x, y, color, count, speed) {
-    let actualCount = Math.min(count, 10);
-    for(let i=0; i<actualCount; i++) {
+    // [수정] 파티클 개수 제한 제거 (화려함 복구)
+    for(let i=0; i<count; i++) {
         let angle = Math.random() * Math.PI * 2;
         let spd = Math.random() * speed;
         particles.push({ x: x, y: y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, life: 20+Math.random()*15, color: color, size: Math.random()*2+1 });
@@ -156,11 +157,12 @@ function spawnParticles(x, y, color, count, speed) {
 }
 
 function spawnText(x, y, text, color, size) {
-    // 텍스트 최대 개수 제한 완화 (20 -> 50) 점수 표시 잘 보이게
-    if (texts.length > 50) return;
+    // [수정] 텍스트 풀 제한을 100개로 늘려 점수 씹힘 방지
+    if (texts.length > 100) texts.shift(); 
+    // 텍스트 위치 랜덤 분산
     let rx = x + (Math.random() - 0.5) * 40;
     let ry = y + (Math.random() - 0.5) * 20;
-    texts.push({ x: rx, y: ry, text: text, color: color, size: size, life: 30, vy: -1.5 });
+    texts.push({ x: rx, y: ry, text: text, color: color, size: size, life: 40, vy: -1.0 });
 }
 
 function shoot(p) {
@@ -355,7 +357,7 @@ function saveGameState() {
         gravityObj: gravityObj ? { ...gravityObj } : null,
         afterimages: [], 
         loopCount: loopCount,
-        frame: frame // 복원 시 시간 계산을 위해
+        frame: frame 
     };
     gameStateHistory.push(snapshot);
     if (gameStateHistory.length > MAX_HISTORY) gameStateHistory.shift();
@@ -397,30 +399,30 @@ function useSkill(id) {
 
     if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
     if (id === 5) { 
-        // [수정] 레일건 데미지 400 -> 80으로 하향 조정
-        shoot({ x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, c: 'cyan', isEnemy: false, damage: 80, isRailgun: true });
+        // [수정] 레일건 데미지 10
+        shoot({ x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, c: 'cyan', isEnemy: false, damage: 10, isRailgun: true });
         player.y = Math.min(790, player.y + 30);
-        spawnParticles(player.x, player.y-20, 'cyan', 20, 8);
+        spawnParticles(player.x, player.y-20, 'cyan', 40, 8); // 파티클 많이
         gameScreen.classList.add('shake-effect');
         setTimeout(() => gameScreen.classList.remove('shake-effect'), 200);
     }
     if (id === 10) gravityObj = { x: player.x, y: player.y, r: 200, absorbed: 0 };
     
     if (id === 12) {
-        spawnParticles(player.x, player.y - 30, '#fff', 15, 6);
+        spawnParticles(player.x, player.y - 30, '#fff', 30, 6);
     }
 }
 
 function createExplosion(x, y, radius) {
     explosions.push({x: x, y: y, r: 0, maxR: radius, life: 20});
-    spawnParticles(x, y, 'orange', 10, 3); 
+    spawnParticles(x, y, 'orange', 20, 3); 
     let rSq = radius * radius;
     bullets.forEach(b => {
         if(b.isEnemy && !b.dead && !b.isLaser) {
             let dx = b.x - x; let dy = b.y - y;
             if (dx*dx + dy*dy < rSq) {
                 b.dead = true;
-                spawnParticles(b.x, b.y, b.color, 2, 2);
+                spawnParticles(b.x, b.y, b.color, 4, 2);
             }
         }
     });
@@ -445,7 +447,7 @@ function updateSkills() {
                         s: 15, r: 60, c: '#a0f', isEnemy: false, damage: dmg,
                         isGravityCounter: true, scoreVal: scoreBonus 
                     });
-                    spawnParticles(gravityObj.x, gravityObj.y, '#a0f', 30, 10);
+                    spawnParticles(gravityObj.x, gravityObj.y, '#a0f', 50, 10);
                     gravityObj = null;
                 }
             }
@@ -562,7 +564,7 @@ function startPhase4() {
 
 function startCountdownSequence() {
     state = 'countdown';
-    countdownTimer = 300; // 5초 * 60프레임
+    countdownTimer = 300; // 5초
     msgBox.style.display = 'block';
     msgBox.style.color = 'cyan';
     gameScreen.style.filter = 'brightness(0.5)';
@@ -701,7 +703,6 @@ function update() {
         bullets = []; 
         gameScreen.style.filter = "";
         
-        // 루프 시작 시에도 5초 카운트다운 적용
         setTimeout(() => {
             startCountdownSequence();
         }, 1000);
@@ -784,7 +785,7 @@ function update() {
                      if (!b.isLaser) {
                          b.dead = true;
                          score += 50; 
-                         spawnParticles(b.x, b.y, 'white', 3, 5);
+                         spawnParticles(b.x, b.y, 'white', 10, 5);
                          continue;
                      }
                 }
@@ -796,7 +797,7 @@ function update() {
                 if(b.x > rx - rw/2 && b.x < rx + rw/2 && b.y < ry) {
                     if(!b.isBossShield && !b.isLaser) { 
                         b.dead = true;
-                        spawnParticles(b.x, b.y, b.color, 2, 2);
+                        spawnParticles(b.x, b.y, b.color, 4, 2);
                         continue; 
                     }
                 }
@@ -825,7 +826,7 @@ function update() {
                 if (b.x > shieldObj.x - shieldObj.w/2 && b.x < shieldObj.x + shieldObj.w/2 &&
                     b.y > shieldObj.y - shieldObj.h/2 && b.y < shieldObj.y + shieldObj.h/2) {
                     b.dead = true; 
-                    spawnParticles(b.x, b.y, 'cyan', 2, 2); 
+                    spawnParticles(b.x, b.y, 'cyan', 4, 2); 
                     if (shieldObj.w < shieldObj.maxW) shieldObj.w += 5;
                     continue;
                 }
@@ -865,7 +866,7 @@ function update() {
                     player.hp--;
                     player.invul = 90; player.slowTimer = 60;
                     gameScreen.style.backgroundColor = '#300';
-                    spawnParticles(player.x, player.y, 'red', 10, 5);
+                    spawnParticles(player.x, player.y, 'red', 20, 5);
                     setTimeout(()=>gameScreen.style.backgroundColor='', 100);
                     if(player.hp <= 0) state = 'over';
                 }
@@ -892,13 +893,12 @@ function update() {
 
                         if ((!b.isLaser && edistSq < (eb.r+5)**2) || isLaserHit) {
                             eb.hp -= (b.damage || 3);
-                            spawnParticles(eb.x, eb.y, 'orange', 1, 1);
+                            spawnParticles(eb.x, eb.y, 'orange', 2, 1);
                             if (eb.hp <= 0) {
                                 eb.dead = true;
                                 score += 50; 
-                                spawnParticles(eb.x, eb.y, eb.color, 5, 3);
+                                spawnParticles(eb.x, eb.y, eb.color, 10, 3);
                             }
-                            // [수정] 중력장 반격탄은 거대 탄환에 막히지 않음
                             if (!b.isRailgun && !b.isGravityCounter) hitGiant = true; 
                             if (!b.isRailgun && !b.isGravityCounter) break; 
                         }
@@ -931,7 +931,7 @@ function update() {
                 let gainScore = 0;
                 
                 if (b.isRailgun) {
-                    gainScore = 10; // [수정] 레일건 점수 너프 (60 -> 10)
+                    gainScore = 1; // 레일건 틱당 점수
                 } else if (b.isGravityCounter) {
                     gainScore = b.scoreVal || 0;
                 } else {
@@ -941,14 +941,16 @@ function update() {
 
                 score += gainScore;
                 
-                // [수정] 점수 표시 조건 완화: 10점 이상은 항상, 그 외에는 10프레임마다 표시
+                // [수정] 일반 탄은 즉시, 레이저/레일건은 0.1초마다 점수 표시 (가독성 확보)
                 if (gainScore > 0) {
-                    if (gainScore >= 10 || frame % 10 === 0) {
+                    if (b.isRailgun || b.isLaser) {
+                        if (frame % 6 === 0) spawnText(boss.x, boss.y - 30, `+${gainScore*6}`, '#0f0', 15);
+                    } else {
                         spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
                     }
                 }
                 
-                if(frame % 3 === 0) spawnParticles(boss.x + (Math.random()-0.5)*20, boss.y + (Math.random()-0.5)*20, 'cyan', 1, 2);
+                if(frame % 3 === 0) spawnParticles(boss.x + (Math.random()-0.5)*20, boss.y + (Math.random()-0.5)*20, 'cyan', 2, 2);
             }
             if(hitAny && !b.isLaser) b.dead = true;
         }
@@ -978,7 +980,8 @@ function draw() {
         ctx.lineWidth = 1;
         ctx.font = "10px Arial";
         ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-        const lines = [420, 500, 650, 700];
+        // [수정] 라인 그리기 업데이트
+        const lines = [420, 520, 650, 740];
         const scores = [5, 4, 3, 2];
         lines.forEach((y, i) => {
             ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(600, y); ctx.stroke();
@@ -1112,9 +1115,9 @@ function draw() {
         let title = state === 'clear' ? "VICTORY!" : "GAME OVER";
         ctx.fillText(title, 300, 300);
         
-        // [추가] 결과 정보 표시
+        // 결과 정보 표시
         ctx.font = '24px Courier';
-        let survivalTime = (frame / 60).toFixed(1); // 초 단위 변환
+        let survivalTime = (frame / 60).toFixed(1); 
         ctx.fillText(`Survival Time: ${survivalTime}s`, 300, 380);
         ctx.fillText(`Final Score: ${score}`, 300, 420);
         
