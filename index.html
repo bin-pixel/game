@@ -2,65 +2,58 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS RUSH: v26.0</title>
-    <link rel="stylesheet" href="style.css">
+    <title>BOSS RUSH: v26.0 (Parry Update)</title>
+    <link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
-
-<!-- 🔹 시작 화면 -->
-<div id="start-overlay">
-    <h1>BOSS RUSH</h1>
-
-    <input id="nickname-input" placeholder="닉네임 입력 (선택)" maxlength="12">
-
-    <p>스킬 2개 선택 (패링 기본)</p>
-    <div id="skill-select">
-        <button data-skill="1">무적</button>
-        <button data-skill="2">가속</button>
-        <button data-skill="3">반사</button>
-        <button data-skill="4">방패</button>
-        <button data-skill="5">광선</button>
-        <button data-skill="7">정지</button>
-        <button data-skill="10">흡수</button>
-        <button data-skill="11">되돌리기</button>
-    </div>
-
-    <button id="start-btn">게임 시작</button>
-
-    <h2>🏆 랭킹</h2>
-    <ol id="ranking-list"></ol>
-</div>
-
-<!-- 🔹 기존 게임 -->
-<div id="game-wrapper" style="display:none;">
-    <!-- 🔽 여기부터 네가 올린 HTML 그대로 -->
-    <div id="game-screen">
-        <div class="boss-hp-container">
-            <div id="boss-hp-bar"></div>
-            <div id="boss-hp-text">10000 / 10000</div>
+    <div id="game-wrapper">
+        <div id="game-screen">
+            <div class="boss-hp-container">
+                <div id="boss-hp-bar"></div>
+                <div id="boss-hp-text">10000 / 10000</div>
+            </div>
+            <canvas id="c" width="600" height="800"></canvas>
+            
+            <div id="ui-layer">
+                <div id="score-box">SCORE: 0</div>
+                <div id="hp-box">♥♥♥♥♥</div>
+                <div id="msg-box"></div>
+                <div id="admin-msg">GOD MODE ON</div>
+            </div>
         </div>
-        <canvas id="c" width="600" height="800"></canvas>
 
-        <div id="ui-layer">
-            <div id="score-box">SCORE: 0</div>
-            <div id="hp-box">♥♥♥♥♥</div>
-            <div id="msg-box"></div>
-            <div id="admin-msg">GOD MODE ON</div>
+        <div id="side-panel">
+            <div class="skill-title">SKILLS</div>
+            <div id="skill-list">
+                <div class="skill" id="skill-12" style="border-color: #fff; color: #fff;"><div class="key">SPC</div><div class="name">패링</div><div class="cooldown"></div></div>
+                
+                <div class="skill" id="skill-1"><div class="key">1</div><div class="name">무적</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-2"><div class="key">2</div><div class="name">가속</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-3"><div class="key">3</div><div class="name">반사</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-4"><div class="key">4</div><div class="name">방패</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-5"><div class="key">5</div><div class="name">광선</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-7"><div class="key">7</div><div class="name">정지</div><div class="cooldown"></div></div>
+                <div class="skill" id="skill-10"><div class="key">0</div><div class="name">흡수</div><div class="cooldown"></div></div>
+                <div class="skill special" id="skill-11"><div class="key">-</div><div class="name">되돌리기</div><div class="cooldown"></div></div>
+            </div>
+        </div>
+
+        <div id="debug-panel">
+            <div class="debug-title">ADMIN CONTROL</div>
+            <div class="phase-buttons">
+                <button onclick="setPhase(1)">P1</button>
+                <button onclick="setPhase(2)">P2</button>
+                <button onclick="setPhase(3)">P3</button>
+                <button onclick="setPhase(4)">P4</button>
+            </div>
+            <div id="debug-info">
+                <p>FPS: <span id="d-fps">60</span></p>
+                <p>HP: <span id="d-hp">0</span></p>
+                <p>Phase: <span id="d-phase">1</span></p>
+                <ul id="d-patterns"></ul>
+            </div>
         </div>
     </div>
-
-    <div id="side-panel">
-        <!-- (생략 없음, 기존 그대로) -->
-    </div>
-
-    <div id="debug-panel"></div>
-</div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
-
-<script src="index.js"></script>
-<script src="game.js"></script>
+    <script src="game.js?v=26"></script>
 </body>
 </html>
