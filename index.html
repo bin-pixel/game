@@ -12,27 +12,26 @@
         (function() {
             const player = localStorage.getItem('playerName');
             if (!player) {
-                // 이름이 없으면 메인으로 이동 (필요 없으면 이 스크립트 삭제 가능)
-                // alert("잘못된 접근입니다."); // 귀찮으면 주석 처리
-                window.location.replace('main.html'); 
+                // 이름 데이터가 없으면 시작 화면(start.html)으로 보냄
+                window.location.replace('start.html'); 
             }
         })();
     </script>
 
     <style>
-        /* === 게임 오버 화면 (수정됨: 배경을 검게 덮어서 뒤가 안 비치게 함) === */
+        /* === 게임 오버 화면 (검은 배경으로 덮기) === */
         #game-over-screen {
             display: none; /* 평소엔 숨김 */
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
             
-            /* 배경: 불투명한 검은색 (중요) */
+            /* 뒤에 게임 화면이 비치지 않도록 완전 검은색 */
             background-color: #000000; 
             
             flex-direction: column;
             align-items: center; justify-content: center;
-            z-index: 9999; /* UI 레이어보다 위에 */
+            z-index: 9999;
             pointer-events: auto; /* 클릭 가능 */
         }
 
@@ -112,7 +111,7 @@
             
             <button class="go-btn btn-restart" onclick="resetGame()">다시 하기 (R)</button>
             <button class="go-btn btn-rank" onclick="goToRanking()">랭킹 보기</button>
-            <button class="go-btn btn-main" onclick="goToMain()">메인으로</button>
+            <button class="go-btn btn-main" onclick="goToStartPage()">메인으로</button>
         </div>
 
     </div>
@@ -120,6 +119,15 @@
     <script src="index.js"></script>
 
     <script>
+        // 메인으로(start.html) 이동 함수
+        function goToStartPage() {
+            // 이름 정보 삭제 (로그아웃 효과)
+            localStorage.removeItem('playerName');
+            // start.html로 이동
+            window.location.href = 'start.html';
+        }
+
+        // 게임 오버 화면 표시
         function showGameOverScreen(finalScore) {
             const screen = document.getElementById('game-over-screen');
             const uiLayer = document.getElementById('ui-layer');
@@ -127,12 +135,11 @@
 
             if(scoreText) scoreText.innerText = "Final Score: " + finalScore;
             
-            // UI 숨기고 (뒷배경 깔끔하게)
-            if(uiLayer) uiLayer.style.display = 'none';
-            // 게임오버 화면 띄우기
-            if(screen) screen.style.display = 'flex';
+            if(uiLayer) uiLayer.style.display = 'none'; // UI 숨김
+            if(screen) screen.style.display = 'flex';   // 게임오버 화면 표시
         }
 
+        // 게임 재시작 시 화면 복구
         function hideGameOverScreen() {
             const screen = document.getElementById('game-over-screen');
             const uiLayer = document.getElementById('ui-layer');
@@ -141,13 +148,16 @@
             if(uiLayer) uiLayer.style.display = 'block';
         }
 
-        // resetGame 함수 덮어쓰기 (안전장치)
+        // 기존 resetGame 함수 덮어쓰기 (안전장치)
         const originalReset = window.resetGame;
         window.resetGame = function() {
             hideGameOverScreen();
             if(typeof originalReset === 'function') originalReset();
             else location.reload();
         };
+
+        // 혹시 index.js에 goToMain이 있어도 여기서 덮어씀
+        window.goToMain = goToStartPage;
     </script>
 </body>
 </html>
