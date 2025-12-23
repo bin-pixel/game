@@ -1,7 +1,8 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-// 도트 그래픽 느낌 (원하시면 true로 변경 가능)
-ctx.imageSmoothingEnabled = true; 
+
+// 도트 그래픽 느낌 제거 (부드러운 처리)
+// ctx.imageSmoothingEnabled = false; 
 
 // UI 엘리먼트 가져오기
 const uiHp = document.getElementById('boss-hp-bar');
@@ -35,14 +36,14 @@ const MAX_HISTORY = 60;
 let historyTimer = 0;   
 
 const player = { 
-    x: 300, y: 700, r: 3, speed: 5, 
+    x: 300, y: 700, r: 5, speed: 5, // 깔끔한 흰 원 (반지름 5)
     hp: 5, maxHp: 5, 
     invul: 0, slowTimer: 0,
     hitboxSize: 2, regenTimer: 0 
 };
 
 const boss = { 
-    x: 300, y: 150, r: 30, baseR: 30,
+    x: 300, y: 150, r: 30, baseR: 30, // 고정 크기
     hp: 10000, maxHp: 10000, 
     phase: 1, angle: 0,
     transitioning: false, freeze: false, moveTimer: 0,
@@ -69,7 +70,7 @@ const skills = {
     2: { name: '산데', cd: 1200, duration: 300, active: false, timer: 0 }, 
     3: { name: '반사', cd: 600, duration: 6, active: false, timer: 0 }, 
     4: { name: '방패', cd: 900, duration: 600, active: false, timer: 0 }, 
-    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, // 쿨타임 10초
+    5: { name: '레일건', cd: 600, duration: 30, active: false, timer: 0 }, 
     7: { name: '동결', cd: 1800, duration: 240, active: false, timer: 0 }, 
     10: { name: '중력장', cd: 1200, duration: 300, active: false, timer: 0 }, 
     11: { name: '리콜', cd: 420, duration: 0, active: false, timer: 0 },
@@ -100,7 +101,6 @@ function getBulletColor() {
     return '#ff0000';
 }
 
-// 점수 배율 구역 설정
 function getScoreMultiplier() {
     if (player.y <= 420) return 5; 
     if (player.y <= 520) return 4; 
@@ -198,7 +198,7 @@ function shoot(p) {
         isRailgun: p.isRailgun || false,
         isGravityCounter: p.isGravityCounter || false,
         scoreVal: p.scoreVal || 0,
-        hasHitBoss: p.hasHitBoss || false, // 레일건 단타 체크용 플래그
+        hasHitBoss: p.hasHitBoss || false, 
         hp: bulletHp, maxHp: bulletHp, isGiant: isGiant
     });
 }
@@ -208,7 +208,6 @@ function bossShoot(p) {
     else shoot(p);
 }
 
-// Patterns
 const patterns = {
     1: () => { if(!boss.isChanneling) boss.freeze=false; for(let i=0; i<6; i++) bossShoot({a:boss.angle+i*1.0, s:2.0}); boss.angle+=0.1; },
     2: () => { if(!boss.isChanneling) boss.freeze=false; for(let i=0; i<16; i++) bossShoot({a:Math.PI*2/16*i, s:1.5}); },
@@ -298,7 +297,6 @@ const patterns = {
 let patternTimer = 0;
 let activePatterns = [];
 
-// [핵심 변경] 3페이즈 이상 패턴 수 증가 로직
 function pickPatterns() {
     activePatterns = [];
     let p = boss.phase;
@@ -311,11 +309,9 @@ function pickPatterns() {
         count = Math.random() < 0.7 ? 2 : 1;
     } 
     else if (p === 3) {
-        // [수정] 3페이즈: 무조건 3개 이상 (기본 3개, 확률 4개)
         count = Math.random() < 0.3 ? 4 : 3;
     } 
     else if (p === 4) {
-        // [수정] 4페이즈: 무조건 3개 이상 (3, 4, 5개 중 하나)
         let rnd = Math.random();
         if (rnd < 0.10) count = 5;      
         else if (rnd < 0.50) count = 4; 
@@ -407,7 +403,6 @@ function useSkill(id) {
 
     if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
     if (id === 5) { 
-        // [수정] 레일건: 단타(70뎀/80점) 설정
         shoot({ 
             x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, 
             w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, 
@@ -451,7 +446,6 @@ function updateSkills() {
                 s.active = false;
                 if (i===4) shieldObj = null;
                 if (i===10 && gravityObj) { 
-                    // [수정] 중력장 최대 데미지/점수 제한
                     let dmg = Math.min(gravityObj.absorbed * 4, 100); 
                     let scoreBonus = Math.min(gravityObj.absorbed * 4, 200); 
 
@@ -578,7 +572,7 @@ function startPhase4() {
 
 function startCountdownSequence() {
     state = 'countdown';
-    countdownTimer = 300; // 5초
+    countdownTimer = 300; 
     msgBox.style.display = 'block';
     msgBox.style.color = 'cyan';
     gameScreen.style.filter = 'brightness(0.5)';
@@ -732,9 +726,8 @@ function update() {
         checkPhaseTransition(newPhase);
     }
 
-    if (boss.phase === 2) boss.r = boss.baseR * 1.5; 
-    else if (boss.phase === 3) boss.r = boss.baseR * 0.8; 
-    else boss.r = boss.baseR;
+    // 보스 크기 고정 (고무줄 몸집 삭제)
+    boss.r = boss.baseR;
     
     uiHp.style.width = (hpR*100)+'%';
     uiHpText.innerText = `${Math.ceil(boss.hp)} / ${boss.maxHp}`;
@@ -826,7 +819,6 @@ function update() {
                 }
             }
 
-            // [수정] 반사 스킬: 고정 데미지(2), 고정 점수(1)
             if (skills[3].active && !b.isLaser) {
                 if (distSq < 160000 && distSq > 3600) { 
                     b.isEnemy = false; b.color = 'cyan'; 
@@ -893,7 +885,6 @@ function update() {
             }
 
         } else {
-            // 아군 탄환 로직
             let hitGiant = false;
             if (b.y < 600) { 
                 for(let j=0; j<bullets.length; j++) {
@@ -940,13 +931,12 @@ function update() {
             }
 
             if(isHit) {
-                // [수정] 레일건 단타 적용 (hasHitBoss 플래그 사용)
                 if (b.isRailgun) {
                     if (b.hasHitBoss) {
-                        hitAny = true; // 데미지 없음
+                        hitAny = true; 
                     } else {
-                        boss.hp -= b.damage; // 70
-                        score += b.scoreVal; // 80
+                        boss.hp -= b.damage; 
+                        score += b.scoreVal; 
                         spawnText(boss.x, boss.y - 30, `BIG HIT +${b.scoreVal}`, 'cyan', 25);
                         b.hasHitBoss = true;
                         hitAny = true;
@@ -954,7 +944,6 @@ function update() {
                     }
                 } 
                 else {
-                    // 일반/반사/중력장
                     boss.hp -= (b.damage || 3);
                     hitAny = true;
                     
@@ -995,11 +984,13 @@ function update() {
 function draw() {
     ctx.clearRect(0,0,600,800);
     
+    // 1. 배경 (별)
     ctx.fillStyle = '#555';
     stars.forEach(s => {
         ctx.fillRect(s.x, s.y, s.size, s.size);
     });
 
+    // 점수 라인 (V키)
     if (showScoreLines) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
@@ -1015,54 +1006,14 @@ function draw() {
     }
 
     if (state === 'play' || state === 'over' || state === 'countdown') {
-        // 잔상
+        
+        // [잔상]
         afterimages.forEach(img => {
             ctx.fillStyle = `rgba(100, 200, 255, ${img.alpha})`;
-            ctx.beginPath(); ctx.arc(img.x, img.y, 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(img.x, img.y, 5, 0, Math.PI*2); ctx.fill();
         });
 
-        // 플레이어 그리기
-        if (state !== 'over') {
-            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : 'white');
-            ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
-            
-            // 히트박스
-            ctx.fillStyle = 'red';
-            ctx.beginPath(); ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2); ctx.fill();
-
-            // 패링 범위 시각화
-            if (skills[12].active) {
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(player.x, player.y, 36, -Math.PI, 0); 
-                ctx.stroke();
-            }
-        }
-
-        // 보스 그리기
-        if (boss.hp > 0) {
-            ctx.save();
-            ctx.translate(boss.x, boss.y);
-            if (boss.freeze) ctx.rotate((Math.random()-0.5)*0.2); 
-            
-            ctx.fillStyle = getPhaseColor();
-            ctx.beginPath(); ctx.arc(0, 0, boss.r, 0, Math.PI*2); ctx.fill();
-            
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(0, 0, boss.r + 5, 0, Math.PI*2); ctx.stroke();
-
-            // 보스 눈
-            ctx.fillStyle = '#000';
-            let eyeOff = (boss.phase === 3) ? 5 : 8;
-            ctx.beginPath(); ctx.arc(-eyeOff, -5, 4, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(eyeOff, -5, 4, 0, Math.PI*2); ctx.fill();
-
-            ctx.restore();
-        }
-
-        // 탄환 그리기
+        // [탄환] (레이어 순서: 배경 -> 탄환 -> 보스 -> 플레이어)
         bullets.forEach(b => {
             if(b.isLaser) {
                 let timeLeft = (b.warnTime + b.activeTime) - b.timer;
@@ -1086,26 +1037,61 @@ function draw() {
                     ctx.translate(b.x, b.y);
                     ctx.rotate(b.angle);
                     
-                    let grd = ctx.createLinearGradient(0, -currentH/2, 0, currentH/2);
-                    grd.addColorStop(0, 'transparent');
-                    grd.addColorStop(0.5, b.color || '#fff');
-                    grd.addColorStop(1, 'transparent');
-                    ctx.fillStyle = grd;
+                    // [수정됨] 그라데이션 없이 깔끔한 단색 처리
+                    ctx.fillStyle = b.color || '#fff';
                     ctx.globalAlpha = alpha;
                     ctx.fillRect(0, -currentH/2, b.w, currentH);
                     ctx.restore();
+                    ctx.globalAlpha = 1.0;
                 }
             } else {
                 ctx.fillStyle = b.color;
                 ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+                // 대형탄 체력 텍스트 제거됨
                 if (b.isGiant) {
                      ctx.strokeStyle = '#fff'; ctx.lineWidth=1; ctx.stroke();
-                     ctx.fillStyle = '#000'; ctx.font="10px Arial"; ctx.fillText(Math.ceil(b.hp), b.x-5, b.y+3);
                 }
             }
         });
 
-        // 오브젝트들 (방패, 중력장)
+        // [보스] (눈알 제거됨, 깔끔한 원형)
+        if (boss.hp > 0) {
+            ctx.save();
+            ctx.translate(boss.x, boss.y);
+            if (boss.freeze) ctx.rotate((Math.random()-0.5)*0.2); 
+            
+            ctx.fillStyle = getPhaseColor();
+            ctx.beginPath(); ctx.arc(0, 0, boss.r, 0, Math.PI*2); ctx.fill();
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, boss.r + 5, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+        }
+
+        // [플레이어] (가장 위에 그려짐)
+        if (state !== 'over') {
+            // 1. 플레이어 몸체 (흰색 원)
+            ctx.fillStyle = (player.invul>0 && Math.floor(frame/4)%2===0) ? 'transparent' : (skills[2].active ? '#0ff' : 'white');
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
+            
+            // 2. [복구됨] 히트박스 표시 (빨간 점) - 이거 없애지 말라고 하신 부분
+            if (!(player.invul>0 && Math.floor(frame/4)%2===0)) {
+                ctx.fillStyle = 'red';
+                ctx.beginPath(); ctx.arc(player.x, player.y, player.hitboxSize, 0, Math.PI*2); ctx.fill();
+            }
+
+            // 3. 패링 범위 (스페이스바)
+            if (skills[12].active) {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(frame*0.5)*0.2})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 36, -Math.PI, 0); 
+                ctx.stroke();
+            }
+        }
+
+        // [오브젝트]
         if (shieldObj) {
             ctx.fillStyle = `rgba(0, 255, 255, ${0.3 + Math.sin(frame*0.1)*0.2})`;
             ctx.fillRect(shieldObj.x - shieldObj.w/2, shieldObj.y - shieldObj.h/2, shieldObj.w, shieldObj.h);
@@ -1116,7 +1102,7 @@ function draw() {
             ctx.strokeStyle = '#a0f'; ctx.lineWidth = 2; ctx.stroke();
         }
 
-        // 이펙트들
+        // [이펙트]
         explosions.forEach(e => {
             ctx.fillStyle = `rgba(255, 100, 0, ${e.life/20})`;
             ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
@@ -1167,7 +1153,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Digit3') useSkill(3);
     if (e.code === 'Digit4') useSkill(4);
     if (e.code === 'Digit5') useSkill(5);
-    if (e.code === 'Digit7') useSkill(7); // 6번 키 대신 7번 스킬 할당
+    if (e.code === 'Digit7') useSkill(7); 
     if (e.code === 'KeyQ') useSkill(10);
     if (e.code === 'KeyE') useSkill(11);
     if (e.code === 'Space') useSkill(12);
