@@ -2,12 +2,7 @@
 // [1] 시스템 설정: 닉네임 체크 & Firebase & 스킬 로드
 // =========================================================
 
-// 1. 닉네임 체크 (없으면 강제 이동)
-const userNickname = localStorage.getItem('bossRush_nickname');
-if (!userNickname) {
-    alert("게임 시작을 위해 닉네임 설정이 필요합니다.");
-    window.location.href = 'start.html';
-}
+// 1. 닉네임 체크 (없으면 강제 이
 
 // 2. 선택된 스킬 불러오기 (Z, X 키 배정용)
 const savedSkills = localStorage.getItem('bossRush_skills');
