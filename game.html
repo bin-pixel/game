@@ -2,33 +2,38 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>NEON BULLET HELL - IN GAME</title>
+    <title>NEON BULLET HELL - BATTLE</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="game-body">
-    <div id="skill-modal" class="overlay">
+    <div id="skill-overlay" class="overlay">
         <h2>SELECT 2 MODULES</h2>
+        <p>Space: Parry(Fixed) / Z, X: Selected Skills</p>
         <div id="skill-grid"></div>
-        <button id="launch-btn" class="neon-btn" disabled>LAUNCH</button>
+        <button id="launch-btn" class="neon-btn" disabled>LAUNCH SYSTEM</button>
     </div>
 
     <div id="admin-modal" class="overlay hidden">
-        <h2 style="color:red;">ADMIN ACCESS</h2>
-        <input type="password" id="admin-pw" class="retro-input" placeholder="PASS">
+        <h2 style="color:red; text-shadow: 0 0 10px red;">ADMIN ACCESS</h2>
+        <input type="password" id="admin-pw" class="retro-input" style="border-color:red;" placeholder="PASSWORD">
+        <p style="margin-top:10px; font-size:12px;">Rankings will be disabled if activated.</p>
     </div>
 
-    <div id="ingame-ui">
+    <div id="ui-layer">
         <div id="boss-hp-container"><div id="boss-hp-bar"></div></div>
-        <div id="score-display">SCORE: 0</div>
-        <div id="hp-display">♥♥♥♥♥</div>
-        <div id="skill-slots">
-            <div class="slot" id="slot-z">Z</div>
-            <div class="slot" id="slot-x">X</div>
+        <div id="score-box">SCORE: 0</div>
+        <div id="hp-box">♥♥♥♥♥</div>
+        <div id="msg-box">READY</div>
+        <div id="skill-hud">
+            <div class="skill-icon" id="hud-z"><span class="key-hint">Z</span><div class="cd-bar"></div></div>
+            <div class="skill-icon" id="hud-x"><span class="key-hint">X</span><div class="cd-bar"></div></div>
+            <div class="skill-icon" id="hud-space"><span class="key-hint">SPC</span><div class="cd-bar"></div></div>
         </div>
     </div>
 
     <canvas id="c" width="600" height="800"></canvas>
-    <div id="admin-tag">CHEATER MODE</div>
+    <div id="admin-status">GOD MODE ACTIVE (RANKING DISABLED)</div>
+    <div id="game-screen"></div>
 
     <script type="module" src="game.js"></script>
 </body>
