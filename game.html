@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>NEON BULLET HELL - IN GAME</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="game-body">
+    <div id="skill-modal" class="overlay">
+        <h2>SELECT 2 MODULES</h2>
+        <div id="skill-grid"></div>
+        <button id="launch-btn" class="neon-btn" disabled>LAUNCH</button>
+    </div>
+
+    <div id="admin-modal" class="overlay hidden">
+        <h2 style="color:red;">ADMIN ACCESS</h2>
+        <input type="password" id="admin-pw" class="retro-input" placeholder="PASS">
+    </div>
+
+    <div id="ingame-ui">
+        <div id="boss-hp-container"><div id="boss-hp-bar"></div></div>
+        <div id="score-display">SCORE: 0</div>
+        <div id="hp-display">♥♥♥♥♥</div>
+        <div id="skill-slots">
+            <div class="slot" id="slot-z">Z</div>
+            <div class="slot" id="slot-x">X</div>
+        </div>
+    </div>
+
+    <canvas id="c" width="600" height="800"></canvas>
+    <div id="admin-tag">CHEATER MODE</div>
+
+    <script type="module" src="game.js"></script>
+</body>
+</html>
