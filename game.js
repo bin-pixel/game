@@ -1,5 +1,8 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+// 최적화: 이미지 스무딩 처리 (도트 느낌이 낫다면 false로, 부드러운게 좋다면 true)
+ctx.imageSmoothingEnabled = false; 
+
 const uiHp = document.getElementById('boss-hp-bar');
 const uiHpText = document.getElementById('boss-hp-text');
 const scoreBox = document.getElementById('score-box');
@@ -24,8 +27,10 @@ let loopCount = 0;
 let lastTime = Date.now();
 let showScoreLines = false; 
 
+// [최적화] 히스토리 저장 변수
 let gameStateHistory = [];
-const MAX_HISTORY = 300; 
+const MAX_HISTORY = 60; // 저장 개수를 줄임 (대신 간격을 늘림)
+let historyTimer = 0;   // 저장 주기 체크용
 
 const player = { 
     x: 300, y: 700, r: 3, speed: 5, 
@@ -55,9 +60,10 @@ const patternInternalCd = {};
 
 const keys = {};
 let stars = [];
-for(let i=0; i<100; i++) stars.push({x:Math.random()*600, y:Math.random()*800, size:Math.random()*2, speed:Math.random()*3+1});
+// [최적화] 배경 별 개수 감소 (100 -> 60)
+for(let i=0; i<60; i++) stars.push({x:Math.random()*600, y:Math.random()*800, size:Math.random()*2, speed:Math.random()*3+1});
 
-// 스킬
+// 스킬 설정
 const skills = {
     1: { name: '무적', cd: 900, duration: 180, active: false, timer: 0 }, 
     2: { name: '산데', cd: 1200, duration: 300, active: false, timer: 0 }, 
@@ -66,8 +72,7 @@ const skills = {
     5: { name: '레일건', cd: 300, duration: 30, active: false, timer: 0 }, 
     7: { name: '동결', cd: 1800, duration: 240, active: false, timer: 0 }, 
     10: { name: '중력장', cd: 1200, duration: 300, active: false, timer: 0 }, 
-    11: { name: '리콜', cd: 3600, duration: 0, active: false, timer: 0 },
-    // ★ 수정: 패링 쿨타임 4초(240프레임)
+    11: { name: '리콜', cd: 420, duration: 0, active: false, timer: 0 },
     12: { name: '패링', cd: 240, duration: 15, active: false, timer: 0 } 
 };
 
@@ -95,13 +100,12 @@ function getBulletColor() {
     return '#ff0000';
 }
 
-// ★ 수정: Zone별 점수 배율 (1점 Base)
 function getScoreMultiplier() {
-    if (player.y <= 420) return 5; // Zone 5 (0~420)
-    if (player.y <= 500) return 4; // Zone 4 (420~500)
-    if (player.y <= 650) return 3; // Zone 3 (500~650)
-    if (player.y <= 700) return 2; // Zone 2 (650~700)
-    return 1;                      // Zone 1 (700~800)
+    if (player.y <= 420) return 5; 
+    if (player.y <= 500) return 4; 
+    if (player.y <= 650) return 3; 
+    if (player.y <= 700) return 2; 
+    return 1;                      
 }
 
 window.setPhase = function(p) {
@@ -142,14 +146,21 @@ function updateDebugPanel() {
 }
 
 function spawnParticles(x, y, color, count, speed) {
-    for(let i=0; i<count; i++) {
+    // [최적화] 파티클 수 제한 (최대 10개로 제한하여 렉 방지)
+    let actualCount = Math.min(count, 10);
+    for(let i=0; i<actualCount; i++) {
         let angle = Math.random() * Math.PI * 2;
         let spd = Math.random() * speed;
-        particles.push({ x: x, y: y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, life: 30+Math.random()*20, color: color, size: Math.random()*3+1 });
+        particles.push({ x: x, y: y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, life: 20+Math.random()*15, color: color, size: Math.random()*2+1 });
     }
 }
+
 function spawnText(x, y, text, color, size) {
-    texts.push({ x: x+(Math.random()-0.5)*20, y: y, text: text, color: color, size: size, life: 40, vy: -1.5 });
+    // [최적화] 텍스트가 너무 많으면 생성하지 않음
+    if (texts.length > 20) return;
+    let rx = x + (Math.random() - 0.5) * 40;
+    let ry = y + (Math.random() - 0.5) * 20;
+    texts.push({ x: rx, y: ry, text: text, color: color, size: size, life: 30, vy: -1.5 });
 }
 
 function shoot(p) {
@@ -168,12 +179,10 @@ function shoot(p) {
     if (calcLife < 400) calcLife = 400; 
     if (p.lifeTime) calcLife = p.lifeTime;
 
-    // ★ 대형탄(Giant Bullet) 설정: HP 부여 및 고기방패화
     let isGiant = (!p.isLaser && (p.r >= 15));
     let bulletHp = 0;
     if (isGiant) {
-        // 페이즈 3,4는 50HP, 1,2는 40HP
-        bulletHp = (boss.phase >= 3) ? 50 : 40;
+        bulletHp = (boss.phase >= 3) ? 40 : 20;
     }
 
     bullets.push({
@@ -191,7 +200,8 @@ function shoot(p) {
         orbitAngle: p.orbitAngle || 0,
         distFromBoss: p.distFromBoss || 0,
         isRailgun: p.isRailgun || false,
-        // New Props
+        isGravityCounter: p.isGravityCounter || false,
+        scoreVal: p.scoreVal || 0,
         hp: bulletHp, maxHp: bulletHp, isGiant: isGiant
     });
 }
@@ -210,7 +220,6 @@ const patterns = {
     5: () => { if(!boss.isChanneling) boss.freeze=false; shoot({x:Math.random()*600, y:0, a:Math.PI/2, s:2.0}); }, 
     6: () => { if(!boss.isChanneling) boss.freeze=true;  let a=angleToP(boss); bossShoot({a:a, s:1.5, accel:0.03}); }, 
     
-    // 7~11: 대형탄 패턴 (HP와 중력 적용됨)
     7: () => { 
         if(!boss.isChanneling) boss.freeze=false;
         for(let i=0; i<3; i++) bossShoot({a:Math.PI*2/3*i+boss.angle, s:3.0, r:20, bounce:1, accel:-0.01}); 
@@ -228,7 +237,6 @@ const patterns = {
         let a=angleToP(boss); for(let i=-1; i<=1; i++) bossShoot({a:a+i*0.5, s:4.5, r:18, bounce:1});
     }, 
     
-    // [12] Aimed Laser: 빈도 증가
     12: () => { 
         if(!boss.isChanneling) boss.freeze=false;
         for(let i=0; i<5; i++) {
@@ -240,22 +248,17 @@ const patterns = {
     }, 
     13: () => { if(!boss.isChanneling) boss.freeze=false; bossShoot({a:angleToP(boss), s:3.5, homing:0.04}); }, 
     
-    // [15] Trap
     15: () => { if(!boss.isChanneling) boss.freeze=true;  let r=200;
         for(let i=0; i<8; i++) shoot({x:player.x+Math.cos(i)*r, y:player.y+Math.sin(i)*r, a:Math.atan2(-Math.sin(i), -Math.cos(i)), s:2.0, accel:0.05, homing:0.01, warnTime:40});
     }, 
     
-    // [16] Spin Laser: 플레이어 조준 + 랜덤 방향 + 쿨타임
     16: () => { 
         if(patternInternalCd[16] > 0) return; 
         patternInternalCd[16] = 500; 
-
         boss.freeze = true; 
         boss.isChanneling = true;
-        
         let startAngle = angleToP(boss); 
         let direction = Math.random() < 0.5 ? 1 : -1; 
-
         for(let i=0; i<4; i++) {
             shoot({
                 x:boss.x, y:boss.y, 
@@ -265,14 +268,12 @@ const patterns = {
                 curve: 0.005 * direction 
             });
         }
-        
         setTimeout(() => {
             boss.isChanneling = false;
             boss.freeze = false;
         }, 3500); 
     }, 
     
-    // [17] Aimed Thunder: 시작점 상향, 길이 증가
     17: () => { 
         if(!boss.isChanneling) boss.freeze=false; 
         for(let i=0; i<3; i++) {
@@ -285,7 +286,6 @@ const patterns = {
         }
     },
 
-    // [New 18] Weak Thunder: 약한 천둥 8발
     18: () => {
         if(!boss.isChanneling) boss.freeze=false;
         for(let i=0; i<8; i++) {
@@ -307,24 +307,17 @@ const patterns = {
         for(let i=0; i<count; i++) shoot({x:boss.x, y:boss.y, a:Math.PI*2/count*i, s:0, accel:0.15, c: boss.phase===4 ? '#888' : '#fff', delay: 30}); setTimeout(() => boss.freeze=false, 500);
     },
     
-    // [20] White Laser (Phase 4): White Core / Gray Border
     20: () => { 
         if(patternInternalCd[20] > 0) return;
         patternInternalCd[20] = 400; 
-
         boss.freeze = true; 
         boss.isChanneling = true;
-
         let startAngle = angleToP(boss);
         let direction = Math.random() < 0.5 ? 1 : -1;
-        // 색상은 draw에서 phase 4일 때 자동 처리됨 (Core White, Border Gray)
         let laserColor = '#fff'; 
-
         shoot({x:boss.x, y:boss.y, a:startAngle, s:0, c:laserColor, w:4000, h:30, isLaser:true, warnTime:30, activeTime:90, curve: 0.01 * direction});
         shoot({x:boss.x, y:boss.y, a:startAngle+Math.PI, s:0, c:laserColor, w:4000, h:30, isLaser:true, warnTime:30, activeTime:90, curve: 0.01 * direction}); 
-        
         boss.angle += 0.2;
-        
         setTimeout(() => {
             boss.isChanneling = false;
             boss.freeze = false;
@@ -342,14 +335,19 @@ function pickPatterns() {
     if (p === 1 && Math.random() < 0.1) count = 1;
     if (p === 2 && Math.random() < 0.7) count = 2;
     if (p === 3) count = Math.random() < 0.8 ? 2 : 3;
-    if (p === 4) count = (Math.random() < 0.1) ? 4 : 3;
+    
+    if (p === 4) {
+        let rnd = Math.random();
+        if (rnd < 0.05) count = 5;      
+        else if (rnd < 0.45) count = 4; 
+        else count = 3;                 
+    }
     
     let pool = [];
     if (p === 1) pool = [1,2,3,4,5,6]; 
     if (p === 2) pool = [1,2,3,4,5,6, 7,8,9,10,11]; 
     if (p === 3) pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,15,16,17]; 
     if (p === 4) {
-        // 4페이즈: 14번 삭제, 18번(약한 천둥) 추가, 12번(조준) 확률 Up
         pool = [1,2,3,4,5,6, 7,8,9,10,11, 12,12, 15,16,17,18, 19,20];
     }
 
@@ -375,16 +373,23 @@ function clearAllPatterns() {
     for(let k in patternInternalCd) patternInternalCd[k] = 0;
 }
 
+// [최적화] 상태 저장 (5프레임마다 1번씩만 저장)
 function saveGameState() {
     if (state !== 'play' || isRewinding) return;
+    historyTimer++;
+    if (historyTimer < 5) return; // 5프레임마다 저장 (성능 최적화)
+    historyTimer = 0;
+
+    // 객체 복사 비용을 줄이기 위해 필요한 데이터만 최소한으로 복사
     let snapshot = {
-        player: { ...player }, boss: { ...boss },
-        bullets: bullets.map(b => ({...b})), score: score,
+        player: { x: player.x, y: player.y, hp: player.hp },
+        boss: { x: boss.x, y: boss.y, hp: boss.hp, phase: boss.phase, r: boss.r },
+        // 탄환 배열 전체 복사는 여전히 무겁지만 필수
+        bullets: bullets.map(b => ({...b})), 
+        score: score,
         shieldObj: shieldObj ? { ...shieldObj } : null,
         gravityObj: gravityObj ? { ...gravityObj } : null,
-        afterimages: afterimages.map(a => ({...a})), 
-        gameScreenFilter: gameScreen.style.filter, 
-        bgClass: gameScreen.className,
+        afterimages: [], // 잔상은 복원 안함 (성능 위해)
         loopCount: loopCount
     };
     gameStateHistory.push(snapshot);
@@ -393,7 +398,7 @@ function saveGameState() {
 
 function restoreGameState() {
     if (gameStateHistory.length === 0) return;
-    let snapshot = gameStateHistory[0]; 
+    let snapshot = gameStateHistory[0]; // 가장 먼 과거로
     player.x = snapshot.player.x; player.y = snapshot.player.y;
     player.hp = snapshot.player.hp; player.invul = 60; 
     boss.x = snapshot.boss.x; boss.y = snapshot.boss.y;
@@ -402,6 +407,7 @@ function restoreGameState() {
     shieldObj = snapshot.shieldObj ? { ...snapshot.shieldObj } : null;
     gravityObj = snapshot.gravityObj ? { ...snapshot.gravityObj } : null;
     loopCount = snapshot.loopCount;
+    
     gameStateHistory = []; 
     msgBox.style.display = 'block'; msgBox.innerText = "TIME REWIND!"; msgBox.style.color = '#a0f';
     gameScreen.className = 'rewind-effect';
@@ -425,7 +431,6 @@ function useSkill(id) {
 
     if (id === 4) shieldObj = { x: player.x, y: player.y - 40, w: 100, maxW: 300, h: 20 };
     if (id === 5) { 
-        // 레일건
         shoot({ x: player.x, y: player.y - 50, a: -Math.PI/2, s: 0, w: 1500, h: 80, isLaser: true, warnTime: 0, activeTime: 10, c: 'cyan', isEnemy: false, damage: 400, isRailgun: true });
         player.y = Math.min(790, player.y + 30);
         spawnParticles(player.x, player.y-20, 'cyan', 20, 8);
@@ -441,11 +446,18 @@ function useSkill(id) {
 
 function createExplosion(x, y, radius) {
     explosions.push({x: x, y: y, r: 0, maxR: radius, life: 20});
-    spawnParticles(x, y, 'orange', 15, 3);
+    spawnParticles(x, y, 'orange', 10, 3); // 파티클 수 감소
+    
+    // [최적화] 거리 계산 (제곱 비교)
+    let rSq = radius * radius;
     bullets.forEach(b => {
-        if(b.isEnemy && !b.dead && !b.isLaser && Math.hypot(b.x-x, b.y-y) < radius) {
-            b.dead = true;
-            spawnParticles(b.x, b.y, b.color, 3, 2);
+        if(b.isEnemy && !b.dead && !b.isLaser) {
+            let dx = b.x - x;
+            let dy = b.y - y;
+            if (dx*dx + dy*dy < rSq) {
+                b.dead = true;
+                spawnParticles(b.x, b.y, b.color, 2, 2);
+            }
         }
     });
 }
@@ -460,17 +472,16 @@ function updateSkills() {
                 s.active = false;
                 if (i===4) shieldObj = null;
                 if (i===10 && gravityObj) { 
-                    // ★ 수정: 중력장 되돌려주는 데미지 감소 및 점수 로직
-                    let dmg = Math.min(gravityObj.absorbed * 5, 200); // 딜은 줄임
-                    let scoreBonus = gravityObj.absorbed * 4; // 점수는 흡수량 x 4
+                    let dmg = Math.min(gravityObj.absorbed * 4, 150); 
+                    let scoreBonus = gravityObj.absorbed * 4; 
 
                     let angleToBoss = Math.atan2(boss.y - gravityObj.y, boss.x - gravityObj.x);
                     shoot({
                         x: gravityObj.x, y: gravityObj.y, a: angleToBoss, 
                         s: 15, r: 60, c: '#a0f', isEnemy: false, damage: dmg,
-                        isGravityCounter: true, scoreVal: scoreBonus // 카운터탄 식별
+                        isGravityCounter: true, scoreVal: scoreBonus 
                     });
-                    spawnParticles(gravityObj.x, gravityObj.y, '#a0f', 50, 10);
+                    spawnParticles(gravityObj.x, gravityObj.y, '#a0f', 30, 10);
                     gravityObj = null;
                 }
             }
@@ -546,19 +557,16 @@ function startPhase3() {
     }, 1000);
 }
 
-// ★ 수정: 4페이즈 진입 - 경고 삭제, 보스 고정, 레이저 범위 400
 function startPhase4() {
-    msgBox.innerText = ""; // 경고 없음
+    msgBox.innerText = ""; 
     msgBox.style.display = 'none';
     
-    // 흑백 필터 적용
     gameScreen.style.filter = "grayscale(100%) contrast(1.2)";
     gameScreen.classList.add('glitch-effect');
 
     boss.freeze = true;
     boss.isChanneling = true;
     
-    // 보스 위치 강제 고정
     boss.x = 300; boss.y = 100;
 
     setTimeout(() => {
@@ -567,14 +575,13 @@ function startPhase4() {
         gameScreen.classList.remove('glitch-effect'); 
     }, 500);
 
-    // 즉시 발사 (경고 시간 후)
     setTimeout(() => {
         shoot({
-            x: 300, y: 100, // 고정 위치
+            x: 300, y: 100, 
             a: Math.PI/2, 
             s: 0, 
             w: 4000, 
-            h: 400,  // ★ 폭 400 (좌우 100씩 안전)
+            h: 360, 
             isLaser: true, 
             warnTime: 60, 
             activeTime: 90, 
@@ -591,31 +598,26 @@ function startPhase4() {
 }
 
 function update() {
-    // 4페이즈 진입 시전 중 보스 고정
     if (boss.phase === 4 && boss.isChanneling && boss.transitioning) {
         boss.x = 300; boss.y = 100;
     }
 
     if (isRewinding) {
-        for(let k=0; k<3; k++) {
-            if(gameStateHistory.length > 0) {
-                let snapshot = gameStateHistory.pop();
-                player.x = snapshot.player.x; player.y = snapshot.player.y;
-                player.hp = snapshot.player.hp;
-                boss.x = snapshot.boss.x; boss.y = snapshot.boss.y;
-                boss.hp = snapshot.boss.hp; boss.phase = snapshot.boss.phase; boss.r = snapshot.boss.r;
-                bullets = snapshot.bullets.map(b => ({...b}));
-                shieldObj = snapshot.shieldObj ? { ...snapshot.shieldObj } : null;
-                gravityObj = snapshot.gravityObj ? { ...snapshot.gravityObj } : null;
-                afterimages = snapshot.afterimages.map(a => ({...a}));
-                score = snapshot.score;
-                gameScreen.style.filter = snapshot.gameScreenFilter || ""; 
-            } else {
-                isRewinding = false;
-                gameScreen.className = '';
-                msgBox.style.display = 'none';
-                break;
-            }
+        // [최적화] 리와인드 속도 (한 번에 여러 프레임 스킵 가능)
+        if (gameStateHistory.length > 0) {
+            let snapshot = gameStateHistory.pop();
+            player.x = snapshot.player.x; player.y = snapshot.player.y;
+            player.hp = snapshot.player.hp;
+            boss.x = snapshot.boss.x; boss.y = snapshot.boss.y;
+            boss.hp = snapshot.boss.hp; boss.phase = snapshot.boss.phase; boss.r = snapshot.boss.r;
+            bullets = snapshot.bullets.map(b => ({...b}));
+            shieldObj = snapshot.shieldObj ? { ...snapshot.shieldObj } : null;
+            gravityObj = snapshot.gravityObj ? { ...snapshot.gravityObj } : null;
+            score = snapshot.score;
+        } else {
+            isRewinding = false;
+            gameScreen.className = '';
+            msgBox.style.display = 'none';
         }
         return;
     }
@@ -630,7 +632,7 @@ function update() {
     if (player.slowTimer > 0) player.slowTimer--;
     
     player.regenTimer++;
-    if (player.regenTimer > 600) { 
+    if (player.regenTimer > 430) { 
         player.regenTimer = 0;
         if (player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + 0.5);
     }
@@ -658,7 +660,6 @@ function update() {
     if(keys['ArrowUp'] && player.y>5) player.y-=baseSpd;
     if(keys['ArrowDown'] && player.y<795) player.y+=baseSpd;
     
-    // 일반 사격
     if (!skills[2].active && !skills[5].active && frame % 5 === 0) {
         let aimA = -Math.PI/2;
         shoot({x:player.x-10, y:player.y, a:aimA, s:15, r:3, c:'#afa', isEnemy:false});
@@ -707,7 +708,7 @@ function update() {
         msgBox.style.color = '#fff';
         setTimeout(() => msgBox.style.display='none', 2000);
         
-        spawnParticles(boss.x, boss.y, 'white', 100, 10);
+        spawnParticles(boss.x, boss.y, 'white', 50, 10);
         clearAllPatterns();
         bullets = []; 
         gameScreen.style.filter = ""; 
@@ -759,7 +760,6 @@ function update() {
         if(b.accel) b.speed += b.accel * localTimeScale;
         if(b.delay > 0) { b.delay -= localTimeScale; continue; }
         
-        // ★ 대형탄 중력 (천천히 하강)
         if (b.isGiant) {
             b.y += 0.3 * localTimeScale;
         }
@@ -782,21 +782,17 @@ function update() {
         if(b.x<-1000 || b.x>1500 || b.y<-1000 || b.y>1500) b.dead = true; 
 
         if (b.isEnemy) {
-            // ★ 대형탄 고기방패 로직 (플레이어 탄막과 충돌 처리)
-            // 이는 아래 플레이어 탄막 루프에서 처리하기 까다로우므로, 
-            // 플레이어 탄막(isEnemy=false) 루프에서 enemy bullet을 검사하는 게 맞지만
-            // 구조상 플레이어 탄막이 b.isEnemy 분기 밖에서 처리됨. 
-            // 따라서 여기서 처리 안하고, 아래쪽 isEnemy=false 부분에서 처리해야 함.
+            // [최적화] 거리 제곱 사용 (Math.hypot 대체)
+            let dx = b.x - player.x;
+            let dy = b.y - player.y;
+            let distSq = dx*dx + dy*dy;
 
             if (skills[12].active) {
-                // ★ 수정: 패링 범위 0.6배 (가로 36, 세로 60)
-                let parryRangeX = 36;
-                let parryRangeY = 60;
-                if (Math.abs(b.x - player.x) < parryRangeX && b.y < player.y && b.y > player.y - parryRangeY) {
+                if (Math.abs(dx) < 36 && b.y < player.y && b.y > player.y - 60) {
                      if (!b.isLaser) {
                          b.dead = true;
                          score += 50; 
-                         spawnParticles(b.x, b.y, 'white', 5, 5);
+                         spawnParticles(b.x, b.y, 'white', 3, 5);
                          continue;
                      }
                 }
@@ -808,16 +804,15 @@ function update() {
                 if(b.x > rx - rw/2 && b.x < rx + rw/2 && b.y < ry) {
                     if(!b.isBossShield && !b.isLaser) { 
                         b.dead = true;
-                        spawnParticles(b.x, b.y, b.color, 3, 2);
+                        spawnParticles(b.x, b.y, b.color, 2, 2);
                         continue; 
                     }
                 }
             }
             
             if (skills[7].active) {
-                let dist = Math.hypot(player.x - b.x, player.y - b.y);
-                if (dist < 100) {
-                     let pushA = Math.atan2(b.y - player.y, b.x - player.x);
+                if (distSq < 10000) { // 100^2
+                     let pushA = Math.atan2(dy, dx);
                      b.x += Math.cos(pushA) * 5;
                      b.y += Math.sin(pushA) * 5;
                      continue; 
@@ -825,29 +820,28 @@ function update() {
             }
 
             if (skills[3].active && !b.isLaser) {
-                let dist = Math.hypot(player.x - b.x, player.y - b.y);
-                if (dist < 400 && dist > 60) { 
+                if (distSq < 160000 && distSq > 3600) { // 400^2, 60^2
                     b.isEnemy = false; b.color = 'cyan'; 
                     b.angle = Math.atan2(boss.y - b.y, boss.x - b.x);
                     b.homing = 0.2; 
-                    // ★ 반사 점수: 개당 2점
                     score += 2;
                     spawnText(b.x, b.y, "+2", '#0ff', 12);
                     continue;
                 }
             }
+            // 방패 소멸 로직
             if (shieldObj && !b.isLaser) {
                 if (b.x > shieldObj.x - shieldObj.w/2 && b.x < shieldObj.x + shieldObj.w/2 &&
                     b.y > shieldObj.y - shieldObj.h/2 && b.y < shieldObj.y + shieldObj.h/2) {
-                    b.vy *= -1; b.angle = Math.atan2(b.vy, b.vx);
-                    b.isEnemy = false; b.color = 'yellow';
+                    b.dead = true; 
+                    spawnParticles(b.x, b.y, 'cyan', 2, 2); 
                     if (shieldObj.w < shieldObj.maxW) shieldObj.w += 5;
                     continue;
                 }
             }
             if (gravityObj && !b.isLaser) {
-                let dist = Math.hypot(gravityObj.x - b.x, gravityObj.y - b.y);
-                if (dist < gravityObj.r) {
+                let gDistSq = (gravityObj.x - b.x)**2 + (gravityObj.y - b.y)**2;
+                if (gDistSq < gravityObj.r * gravityObj.r) {
                     b.x += (gravityObj.x - b.x) * 0.1; b.y += (gravityObj.y - b.y) * 0.1;
                     b.r -= 0.5; if(b.r<=0) b.dead=true;
                     gravityObj.r -= 0.5; gravityObj.absorbed++;
@@ -857,59 +851,68 @@ function update() {
             }
 
             let hit = false;
-            let dist = 0;
             if (b.isLaser) {
                  if (b.timer >= b.warnTime) {
                      let timeLeft = (b.warnTime + b.activeTime) - b.timer;
                      let currentH = b.h;
                      if(timeLeft < 10) currentH = b.h * (timeLeft/10);
-                     let dx = player.x - b.x; let dy = player.y - b.y;
                      let rx = dx * Math.cos(-b.angle) - dy * Math.sin(-b.angle);
                      let ry = dx * Math.sin(-b.angle) + dy * Math.cos(-b.angle);
                      if (rx >= -1000 && rx <= b.w && Math.abs(ry) <= currentH/2 + player.hitboxSize) hit = true;
                  }
             } else {
-                dist = Math.hypot(b.x-player.x, b.y-player.y);
-                if (dist < player.hitboxSize + b.r) hit = true;
+                let hitR = player.hitboxSize + b.r;
+                if (distSq < hitR * hitR) hit = true;
             }
 
             if(hit) {
                 let isInvulSkill = skills[1].active;
-                let bossCol = (Math.hypot(player.x-boss.x, player.y-boss.y) < boss.r);
+                // 보스 충돌 체크 최적화
+                let bossDistSq = (player.x-boss.x)**2 + (player.y-boss.y)**2;
+                let bossCol = (bossDistSq < boss.r * boss.r);
+                
                 if (!bossCol && player.invul <= 0 && !godMode && !isInvulSkill && !skills[7].active) {
                     player.hp--;
                     player.invul = 90; player.slowTimer = 60;
                     gameScreen.style.backgroundColor = '#300';
-                    spawnParticles(player.x, player.y, 'red', 20, 5);
+                    spawnParticles(player.x, player.y, 'red', 10, 5);
                     setTimeout(()=>gameScreen.style.backgroundColor='', 100);
                     if(player.hp <= 0) state = 'over';
                 }
-            } else if (!b.isLaser && dist < 20 && !b.grazed) { 
-                // 그레이즈 점수는 기본 유지
+            } else if (!b.isLaser && distSq < 400 && !b.grazed) { // 20^2
                 let mult = getScoreMultiplier();
                 score += 1 * mult; 
                 b.grazed = true; 
             }
 
         } else {
-            // 플레이어 탄환 로직
-            
-            // 1. 대형탄(Enemy Giant Bullet)과 충돌 체크
+            // 아군 탄환 로직
             let hitGiant = false;
-            for(let j=0; j<bullets.length; j++) {
-                let eb = bullets[j];
-                if (eb.isEnemy && eb.isGiant && !eb.dead) {
-                    let dist = Math.hypot(b.x - eb.x, b.y - eb.y);
-                    if (dist < eb.r + 5) {
-                        eb.hp -= (b.damage || 3);
-                        spawnParticles(b.x, b.y, 'orange', 1, 1); // 타격 이펙트
-                        if (eb.hp <= 0) {
-                            eb.dead = true;
-                            score += 50; // 대형탄 파괴 점수
-                            spawnParticles(eb.x, eb.y, eb.color, 10, 3);
+            // [최적화] 거대 탄환 충돌 체크는 탄환이 많을 때 무거우므로 
+            // 아군 탄환이 화면 상단에 있을 때만 대략적으로 체크하거나 생략
+            if (b.y < 600) { 
+                for(let j=0; j<bullets.length; j++) {
+                    let eb = bullets[j];
+                    if (eb.isEnemy && eb.isGiant && !eb.dead) {
+                        let edx = b.x - eb.x;
+                        let edy = b.y - eb.y;
+                        let edistSq = edx*edx + edy*edy;
+                        let isLaserHit = false;
+                        if (b.isLaser) {
+                             if (Math.abs(edx) < eb.r + 10) isLaserHit = true;
                         }
-                        hitGiant = true; // 플레이어 탄환 소멸
-                        break;
+
+                        if ((!b.isLaser && edistSq < (eb.r+5)**2) || isLaserHit) {
+                            eb.hp -= (b.damage || 3);
+                            spawnParticles(eb.x, eb.y, 'orange', 1, 1);
+                            if (eb.hp <= 0) {
+                                eb.dead = true;
+                                score += 50; 
+                                spawnParticles(eb.x, eb.y, eb.color, 5, 3);
+                            }
+                            if (!b.isRailgun) hitGiant = true; 
+                            if (!b.isRailgun) break; 
+                        }
                     }
                 }
             }
@@ -918,30 +921,43 @@ function update() {
                 continue;
             }
 
-            // 2. 보스 피격 체크
             let hitAny = false;
             let dmg = b.damage || 3;
-            if(Math.abs(b.x-boss.x)<30 && Math.abs(b.y-boss.y)<30) {
+            let isHit = false;
+
+            if (b.isLaser) {
+                if (Math.abs(b.x - boss.x) < (b.h/2 + boss.r)) { 
+                    isHit = true;
+                }
+            } else {
+                // 단순 박스 충돌로 최적화
+                if(Math.abs(b.x-boss.x)<30 + b.r && Math.abs(b.y-boss.y)<30 + b.r) {
+                    isHit = true;
+                }
+            }
+
+            if(isHit) {
                 boss.hp -= dmg; 
                 hitAny = true;
                 
                 let gainScore = 0;
                 
                 if (b.isRailgun) {
-                    // ★ 레일건: 타당 60점
                     gainScore = 60;
                 } else if (b.isGravityCounter) {
-                    // ★ 중력장 카운터: 흡수량 x 4
                     gainScore = b.scoreVal || 0;
                 } else {
-                    // ★ 일반 탄: 거리 비례 1~5점
                     let mult = getScoreMultiplier();
                     gainScore = 1 * mult;
                 }
 
                 score += gainScore;
-                if (gainScore > 5) spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
-                spawnParticles(b.x, b.y, 'cyan', 2, 2);
+                
+                if (gainScore > 5 && frame % 5 === 0) {
+                    spawnText(boss.x, boss.y - 30, `+${gainScore}`, '#0f0', 15);
+                }
+                // 타격 파티클 감소
+                if(frame % 3 === 0) spawnParticles(boss.x + (Math.random()-0.5)*20, boss.y + (Math.random()-0.5)*20, 'cyan', 1, 2);
             }
             if(hitAny && !b.isLaser) b.dead = true;
         }
@@ -971,7 +987,6 @@ function draw() {
         ctx.lineWidth = 1;
         ctx.font = "10px Arial";
         ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-        // Zone Line 시각화
         const lines = [420, 500, 650, 700];
         const scores = [5, 4, 3, 2];
         lines.forEach((y, i) => {
@@ -992,7 +1007,8 @@ function draw() {
     if (shieldObj) {
         ctx.save();
         ctx.translate(shieldObj.x, shieldObj.y);
-        ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = 'cyan';
+        // [최적화] 그림자 제거
+        ctx.strokeStyle = 'cyan'; ctx.lineWidth = 3; 
         ctx.strokeRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
         ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
         ctx.fillRect(-shieldObj.w/2, -shieldObj.h/2, shieldObj.w, shieldObj.h);
@@ -1010,7 +1026,6 @@ function draw() {
     if (skills[12].active) {
         ctx.save();
         ctx.strokeStyle = 'white'; ctx.lineWidth = 4;
-        ctx.shadowColor = 'white'; ctx.shadowBlur = 15;
         ctx.beginPath();
         ctx.arc(player.x, player.y - 30, 40, Math.PI, 0); 
         ctx.stroke();
@@ -1029,8 +1044,7 @@ function draw() {
             }
             ctx.globalAlpha = 1.0;
         } else {
-            ctx.shadowBlur = b.r > 5 ? 10 : 0; 
-            ctx.shadowColor = b.color;
+            // [최적화] shadowBlur 제거 (치명적 렉 유발 원인 제거)
             ctx.fillStyle = b.color;
             if(b.isLaser) {
                 let timeLeft = (b.warnTime + b.activeTime) - b.timer;
@@ -1039,16 +1053,12 @@ function draw() {
                 if (appearTime < 5) currentH = b.h * (appearTime/5);
                 if (timeLeft < 10) currentH = b.h * (timeLeft/10);
                 
-                // ★ 4페이즈 레이저: 회색 테두리 + 흰색 코어
                 if (boss.phase === 4 && b.isEnemy) {
-                    // 테두리 (회색)
                     ctx.fillStyle = '#888'; 
                     ctx.fillRect(-1000, -currentH/2 - 4, b.w+1000, currentH + 8);
-                    // 코어 (흰색)
                     ctx.fillStyle = '#fff';
                     ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
                 } else {
-                    // 일반
                     ctx.fillRect(-1000, -currentH/2, b.w+1000, currentH);
                     ctx.fillStyle = '#fff'; ctx.fillRect(-1000, -currentH/4, b.w+1000, currentH/2);
                 }
@@ -1063,16 +1073,14 @@ function draw() {
                     if(b.r > 5) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0,b.r*0.6,0,Math.PI*2); ctx.fill(); }
                 }
             }
-            ctx.shadowBlur = 0;
         }
         ctx.restore();
     });
 
     let color = getPhaseColor();
-    ctx.shadowBlur = 20; ctx.shadowColor = color;
+    // [최적화] 보스 그림자 제거
     ctx.fillStyle = color; 
     ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
     
     explosions.forEach(e => {
         ctx.save(); ctx.translate(e.x, e.y);
@@ -1090,14 +1098,14 @@ function draw() {
     if (player.invul <= 0 || frame % 4 < 2) {
         ctx.fillStyle = player.slowTimer > 0 ? '#555' : 'red'; 
         
-        // ★ 4페이즈 플레이어 가시성: 검은 몸체 + 흰색 빛나는 테두리
         if (boss.phase === 4) {
-            ctx.shadowBlur = 10; ctx.shadowColor = 'white';
+            // 보스 페이즈 4는 중요하므로 쉐도우 유지하되 최소화
+            // ctx.shadowBlur = 10; 
             ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
-            ctx.fillStyle = '#222'; // 어두운 몸체
+            ctx.fillStyle = '#222'; 
             ctx.fillRect(player.x-15, player.y-15, 30, 30);
             ctx.strokeRect(player.x-15, player.y-15, 30, 30);
-            ctx.shadowBlur = 0;
+            // ctx.shadowBlur = 0;
         } else {
             ctx.fillRect(player.x-15, player.y-15, 30, 30);
         }
@@ -1118,7 +1126,7 @@ function draw() {
         ctx.fillStyle = '#fff'; ctx.font = '50px Courier'; ctx.textAlign='center';
         if (state === 'clear') {
             ctx.fillText("VICTORY!", 300, 350);
-            if(frame % 20 === 0) spawnParticles(Math.random()*600, Math.random()*600, `hsl(${Math.random()*360},100%,50%)`, 50, 5);
+            if(frame % 20 === 0) spawnParticles(Math.random()*600, Math.random()*600, `hsl(${Math.random()*360},100%,50%)`, 30, 5);
         } else {
             ctx.fillText("GAME OVER", 300, 400);
         }
