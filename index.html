@@ -7,128 +7,12 @@
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <style>
-        /* === 1. 보스 체력바 === */
-        #boss-hp-container {
-            position: absolute;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 300px;
-            height: 15px;
-            border: 2px solid #fff;
-            background-color: #222;
-            z-index: 80;
-            display: none; /* 초기엔 숨김 */
-            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-        }
-
-        #boss-hp-bar {
-            width: 100%; height: 100%;
-            background-color: #f00;
-            transition: width 0.1s linear;
-        }
-
-        #boss-hp-text {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            line-height: 15px; text-align: center;
-            color: white; font-size: 11px; font-weight: bold;
-            font-family: 'Courier New', Courier, monospace;
-            text-shadow: 1px 1px 1px black;
-        }
-
-        /* === 2. 스킬 UI (왼쪽 하단) === */
-        #skill-hud {
-            position: absolute;
-            bottom: 20px; left: 20px;
-            display: flex; gap: 15px;
-            z-index: 50;
-        }
-        .skill-slot {
-            width: 50px; height: 50px;
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px solid #777;
-            border-radius: 8px;
-            position: relative;
-            display: flex; align-items: center; justify-content: center;
-            color: #fff; font-size: 24px;
-            overflow: hidden;
-        }
-        .key-badge {
-            position: absolute; top: 2px; left: 4px;
-            color: #ffeb3b; font-size: 12px; font-weight: bold;
-            z-index: 60; text-shadow: 1px 1px 1px #000;
-        }
-        .skill-icon { z-index: 55; }
-        .cd-overlay {
-            position: absolute; bottom: 0; left: 0;
-            width: 100%; height: 0%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 70; transition: height 0.05s linear;
-        }
-
-        /* === 3. HUD 정보 === */
-        .hud-text {
-            position: absolute; color: white;
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold; font-size: 20px;
-            z-index: 90; text-shadow: 1px 1px 2px #000;
-        }
-        #score-box { top: 20px; left: 20px; }
-        #hp-box { top: 50px; left: 20px; color: #f55; }
-        #player-info { top: 80px; left: 20px; color: #aaa; font-size: 14px; }
-        #msg-box { 
-            position: absolute; top: 120px; left: 50%; transform: translateX(-50%);
-            color: #ff0; font-weight: bold; font-size: 20px; display: none;
-        }
-
-        /* === 4. 게임 오버 화면 (수정됨: 겹침 방지) === */
-        #game-over-screen {
-            display: none;
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            /* 배경을 아주 진하게 해서 뒤에 있는 캔버스 글씨를 가림 */
-            background: rgba(0, 0, 0, 0.95); 
-            flex-direction: column;
-            align-items: center; justify-content: center;
-            z-index: 9999; /* 최상단 보장 */
-            gap: 20px; /* 요소들 사이 간격 자동 조절 */
-        }
-        
-        #go-title {
-            color: red; font-size: 60px; 
-            text-shadow: 0 0 20px red; 
-            margin: 0; /* 마진 제거하고 gap으로 제어 */
-        }
-        
-        #go-score {
-            color: white; font-size: 30px; 
-            margin: 0; 
-            margin-bottom: 20px;
-        }
-
-        .go-btn {
-            width: 260px; padding: 15px; 
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold; cursor: pointer; font-size: 18px;
-            background: transparent; color: white; border: 2px solid white;
-            transition: 0.2s;
-            /* 버튼끼리 겹치지 않게 */
-            margin: 5px 0; 
-        }
-        .go-btn:hover { background: rgba(255,255,255,0.2); transform: scale(1.02); }
-        .btn-rank { color: #0f0; border-color: #0f0; }
-        .btn-main { color: #f00; border-color: #f00; }
-    </style>
 </head>
 <body>
     <div id="game-wrapper">
         <canvas id="c" width="600" height="800"></canvas>
         
         <div id="ui-layer">
-            
             <div id="boss-hp-container">
                 <div id="boss-hp-bar"></div>
                 <div id="boss-hp-text">10000 / 10000</div>
@@ -137,114 +21,27 @@
             <div id="score-box" class="hud-text">SCORE: 0</div>
             <div id="hp-box" class="hud-text">♥♥♥♥♥</div>
             <div id="player-info" class="hud-text">PLAYER: ???</div>
-            <div id="msg-box">PHASE 1</div>
 
-            <div id="skill-hud">
-                <div class="skill-slot" id="skill-z-slot">
-                    <span class="key-badge">Z</span>
-                    <span class="skill-icon" id="skill-z-icon">⚔️</span>
-                    <div id="skill-z-cd" class="cd-overlay"></div>
-                </div>
-                <div class="skill-slot" id="skill-x-slot">
-                    <span class="key-badge">X</span>
-                    <span class="skill-icon" id="skill-x-icon">⚡</span>
-                    <div id="skill-x-cd" class="cd-overlay"></div>
-                </div>
-                <div class="skill-slot" id="skill-space-slot">
-                    <span class="key-badge">Spc</span>
-                    <span class="skill-icon">🛡️</span>
-                    <div id="skill-space-cd" class="cd-overlay"></div>
-                </div>
+            <div id="msg-box">PHASE 1</div>
+            
+            <div id="admin-msg" style="display:none; position:absolute; top:10px; left:10px; color:red; font-weight:bold;">[ADMIN MODE ACTIVE]</div>
+            <div id="debug-panel" style="display:none; position:absolute; top:30px; left:10px; color:#0f0; font-size:12px; background:rgba(0,0,0,0.8); padding:5px;">
+                FPS: <span id="d-fps">0</span><br>
+                HP: <span id="d-hp">0</span><br>
+                Phase: <span id="d-phase">1</span><br>
+                Patterns: <ul id="d-patterns" style="padding-left:15px; margin:0;"></ul>
             </div>
 
-            <div id="pause-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center; color:white; z-index:999;">
+            <div id="side-panel">
+                </div>
+
+            <div id="pause-overlay">
                 <div class="neon-text" style="font-size: 60px;">PAUSED</div>
                 <div style="color: #aaa; margin-top: 20px;">Press [S] to Resume</div>
             </div>
-
-            <div id="game-over-screen">
-                <h1 id="go-title">GAME OVER</h1>
-                <h2 id="go-score">Final Score: 0</h2>
-                
-                <button class="go-btn" onclick="resetGame()">다시 하기 (R)</button>
-                <button class="go-btn btn-rank" onclick="goToRanking()">랭킹 보기</button>
-                <button class="go-btn btn-main" onclick="goToMain()">메인으로</button>
-            </div>
-
         </div>
     </div>
 
     <script src="index.js"></script>
-
-    <script>
-        const pName = localStorage.getItem('playerName') || "Player";
-        document.getElementById('player-info').innerText = "PLAYER: " + pName;
-
-        function goToMain() {
-            localStorage.removeItem('playerName');
-            window.location.href = 'start.html';
-        }
-        function goToRanking() {
-            alert("랭킹 시스템은 아직 준비 중입니다!");
-        }
-
-        // 게임 오버 UI 표시
-        function showGameOverScreen(finalScore) {
-            const screen = document.getElementById('game-over-screen');
-            const scoreText = document.getElementById('go-score');
-            
-            // 점수 업데이트
-            if(scoreText) scoreText.innerText = "Final Score: " + finalScore;
-            
-            // [중요] 게임 오버 시 보스 체력바 강제로 숨기기
-            const hpBar = document.getElementById('boss-hp-container');
-            if(hpBar) {
-                hpBar.style.display = 'none';
-                hpBar.style.visibility = 'hidden'; // 확실하게 숨김
-            }
-
-            if(screen) screen.style.display = 'flex';
-        }
-
-        function hideGameOverScreen() {
-            const screen = document.getElementById('game-over-screen');
-            if(screen) screen.style.display = 'none';
-        }
-
-        // 재시작 함수
-        const originalReset = window.resetGame;
-        window.resetGame = function() {
-            hideGameOverScreen();
-            const hpBar = document.getElementById('boss-hp-container');
-            if(hpBar) {
-                hpBar.style.display = 'none';
-                hpBar.style.visibility = 'visible'; // 다시 보이게 세팅 (display로 제어)
-            }
-            
-            if(typeof originalReset === 'function') originalReset();
-            else location.reload();
-        };
-
-        // [자동 감지] 보스 체력바 표시 로직
-        const hpObserver = new MutationObserver((mutations) => {
-            // 게임 오버 화면이 켜져있으면 체력바 절대 켜지 마라
-            const goScreen = document.getElementById('game-over-screen');
-            if(goScreen && goScreen.style.display === 'flex') return;
-
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'style') {
-                    const hpContainer = document.getElementById('boss-hp-container');
-                    if (hpContainer && hpContainer.style.display === 'none') {
-                        hpContainer.style.display = 'block';
-                    }
-                }
-            });
-        });
-
-        const hpBarElem = document.getElementById('boss-hp-bar');
-        if(hpBarElem) {
-            hpObserver.observe(hpBarElem, { attributes: true });
-        }
-    </script>
 </body>
 </html>
